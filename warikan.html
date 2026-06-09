@@ -34,9 +34,42 @@
     color: white;
     padding: 20px 16px 16px;
     text-align: center;
+    position: relative;
   }
   header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
   header p  { font-size: 13px; opacity: 0.85; margin-top: 3px; }
+
+  .share-btn {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.22);
+    color: white;
+    border: none;
+    border-radius: 9px;
+    padding: 7px 13px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.15s;
+  }
+  .share-btn:active { background: rgba(255,255,255,0.36); }
+
+  .shared-banner {
+    background: #fffbea;
+    border-bottom: 1.5px solid #fcd34d;
+    color: #92400e;
+    text-align: center;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+  }
+  .shared-banner.visible { display: block; }
 
   /* タブナビ */
   nav {
@@ -264,7 +297,9 @@
 <header>
   <h1>✈️ 旅行割り勘</h1>
   <p>みんなの支出を公平に分けよう</p>
+  <button class="share-btn" onclick="shareData()">🔗 共有</button>
 </header>
+<div id="shared-banner" class="shared-banner">👀 共有データを表示しています（読み取り専用）</div>
 
 <!-- メンバーページ -->
 <div id="page-members" class="page active">
@@ -341,10 +376,54 @@
 <script>
   const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
 
-  let state = JSON.parse(localStorage.getItem('warikan') || '{"members":[],"expenses":[]}');
+  let isSharedView = false;
+
+  function loadFromHash() {
+    const hash = location.hash;
+    if (!hash.startsWith('#d=')) return null;
+    try {
+      const encoded = hash.slice(3);
+      const json = decodeURIComponent(escape(atob(encoded)));
+      const data = JSON.parse(json);
+      if (Array.isArray(data.members) && Array.isArray(data.expenses)) return data;
+    } catch (e) {}
+    return null;
+  }
+
+  const sharedData = loadFromHash();
+  let state;
+  if (sharedData) {
+    state = sharedData;
+    isSharedView = true;
+    document.getElementById('shared-banner').classList.add('visible');
+  } else {
+    state = JSON.parse(localStorage.getItem('warikan') || '{"members":[],"expenses":[]}');
+  }
 
   function save() {
-    localStorage.setItem('warikan', JSON.stringify(state));
+    if (!isSharedView) localStorage.setItem('warikan', JSON.stringify(state));
+  }
+
+  function shareData() {
+    if (state.members.length === 0 && state.expenses.length === 0) {
+      showToast('メンバーか支出を追加してから共有してください');
+      return;
+    }
+    const json = JSON.stringify(state);
+    const encoded = btoa(unescape(encodeURIComponent(json)));
+    const url = location.origin + location.pathname + '#d=' + encoded;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('共有URLをコピーしました');
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('共有URLをコピーしました'); }
+      catch (e) { showToast('コピーに失敗しました'); }
+      document.body.removeChild(ta);
+    });
   }
 
   function showToast(msg) {
