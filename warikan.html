@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>旅行割り勘</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -28,50 +29,82 @@
     padding-bottom: 80px;
   }
 
-  /* ヘッダー */
+  .hidden { display: none !important; }
+
+  /* ---- オーバーレイ ---- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .overlay-card {
+    background: white;
+    border-radius: 20px;
+    padding: 36px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 360px;
+  }
+  .overlay-icon { font-size: 60px; margin-bottom: 18px; }
+  .overlay-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .overlay-sub { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- ヘッダー ---- */
   header {
     background: linear-gradient(135deg, #4f7dff 0%, #7c5cfc 100%);
     color: white;
-    padding: 20px 16px 16px;
+    padding: 20px 16px 14px;
     text-align: center;
     position: relative;
   }
   header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
-  header p  { font-size: 13px; opacity: 0.85; margin-top: 3px; }
+  .header-room { font-size: 11px; opacity: 0.75; margin-top: 3px; font-family: monospace; letter-spacing: 1px; }
 
   .share-btn {
     position: absolute;
-    right: 14px;
-    top: 50%;
+    right: 14px; top: 50%;
     transform: translateY(-50%);
     background: rgba(255,255,255,0.22);
-    color: white;
-    border: none;
-    border-radius: 9px;
-    padding: 7px 13px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    transition: background 0.15s;
+    color: white; border: none;
+    border-radius: 9px; padding: 7px 13px;
+    font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s;
   }
-  .share-btn:active { background: rgba(255,255,255,0.36); }
+  .share-btn:active { background: rgba(255,255,255,0.38); }
 
-  .shared-banner {
-    background: #fffbea;
-    border-bottom: 1.5px solid #fcd34d;
-    color: #92400e;
-    text-align: center;
-    padding: 9px 16px;
-    font-size: 13px;
-    font-weight: 600;
-    display: none;
+  .rt-indicator {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    display: flex; align-items: center; gap: 5px;
   }
-  .shared-banner.visible { display: block; }
+  .rt-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transition: background 0.3s;
+  }
+  .rt-dot.connected  { background: #69f0ae; }
+  .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-  /* タブナビ */
+  /* ---- タブナビ ---- */
   nav {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -82,76 +115,42 @@
     box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
   }
   nav button {
-    flex: 1;
-    background: none;
-    border: none;
-    padding: 10px 4px 8px;
-    font-size: 10px;
-    color: var(--subtext);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    transition: color 0.2s;
+    flex: 1; background: none; border: none;
+    padding: 10px 4px 8px; color: var(--subtext);
+    cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 3px; transition: color 0.2s;
   }
   nav button.active { color: var(--primary); }
-  nav button .icon { font-size: 22px; }
+  nav button .icon  { font-size: 22px; }
   nav button .label { font-size: 10px; font-weight: 600; }
 
-  /* コンテンツ */
+  /* ---- ページ ---- */
   .page { display: none; padding: 16px; animation: fadeIn 0.2s ease; }
   .page.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-  /* カード */
-  .card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: var(--shadow);
-    margin-bottom: 12px;
-  }
-  .card-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--subtext);
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 12px;
-  }
+  /* ---- カード ---- */
+  .card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
 
-  /* フォーム */
-  .input-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
+  /* ---- フォーム ---- */
+  .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
   input, select {
-    width: 100%;
-    padding: 12px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    font-size: 15px;
-    background: white;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s;
-    -webkit-appearance: none;
-    appearance: none;
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 15px; background: white; color: var(--text);
+    outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none; appearance: none;
   }
   input:focus, select:focus { border-color: var(--primary); }
-  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
   .btn {
-    padding: 12px 20px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
+    padding: 12px 20px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap;
   }
   .btn:active { transform: scale(0.96); }
   .btn-primary { background: var(--primary); color: white; }
@@ -159,149 +158,99 @@
   .btn-full { width: 100%; }
   .btn-danger { background: #fff0f0; color: var(--danger); font-size: 13px; padding: 6px 12px; border-radius: 8px; }
 
-  /* メンバーリスト */
-  .member-chip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: #f8f9ff;
-    border-radius: 10px;
-    margin-bottom: 6px;
-  }
+  /* ---- メンバー ---- */
+  .member-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f8f9ff; border-radius: 10px; margin-bottom: 6px; }
   .member-chip .name { font-size: 15px; font-weight: 600; }
   .member-chip .paid { font-size: 12px; color: var(--subtext); margin-top: 1px; }
-  .avatar {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 700; color: white;
-    margin-right: 10px; flex-shrink: 0;
-  }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; margin-right: 10px; flex-shrink: 0; }
   .chip-left { display: flex; align-items: center; }
 
-  /* 支出リスト */
-  .expense-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: #f8f9ff;
-    border-radius: 12px;
-    margin-bottom: 8px;
-  }
+  /* ---- 支出 ---- */
+  .expense-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px; }
   .expense-info { flex: 1; }
   .expense-desc { font-size: 15px; font-weight: 600; }
   .expense-meta { font-size: 12px; color: var(--subtext); margin-top: 2px; }
   .expense-amount { font-size: 18px; font-weight: 700; color: var(--primary); margin: 0 12px; }
 
-  /* 精算 */
-  .settlement-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px;
-    background: #f8f9ff;
-    border-radius: 12px;
-    margin-bottom: 8px;
-  }
+  /* ---- 精算 ---- */
+  .settlement-row { display: flex; align-items: center; gap: 8px; padding: 14px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px; }
   .settlement-row .from { font-weight: 700; font-size: 15px; }
   .settlement-row .arrow { color: var(--primary); font-size: 18px; }
   .settlement-row .to { font-weight: 700; font-size: 15px; }
   .settlement-row .amount { margin-left: auto; font-size: 17px; font-weight: 700; color: var(--primary); }
 
-  .summary-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .summary-box {
-    background: #f8f9ff;
-    border-radius: 12px;
-    padding: 12px;
-    text-align: center;
-  }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .summary-box { background: #f8f9ff; border-radius: 12px; padding: 12px; text-align: center; }
   .summary-box .label { font-size: 11px; color: var(--subtext); margin-bottom: 4px; }
   .summary-box .value { font-size: 20px; font-weight: 700; color: var(--text); }
 
-  .balance-bar {
-    padding: 10px 12px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
+  .balance-bar { padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
   .balance-bar.positive { background: #e8f5e9; }
   .balance-bar.negative { background: #ffeaea; }
-  .balance-bar.zero    { background: #f3f4f6; }
+  .balance-bar.zero     { background: #f3f4f6; }
   .balance-bar .bal-name { font-size: 14px; font-weight: 600; }
   .balance-bar .bal-val  { font-size: 15px; font-weight: 700; }
   .balance-bar.positive .bal-val { color: var(--success); }
   .balance-bar.negative .bal-val { color: var(--danger); }
 
-  .empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--subtext);
-  }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--subtext); }
   .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
   .empty-state p { font-size: 14px; }
 
-  .section-sep { height: 1px; background: var(--border); margin: 12px 0; }
+  .badge { display: inline-block; background: var(--primary); color: white; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
 
-  .badge {
-    display: inline-block;
-    background: var(--primary);
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 20px;
-    margin-left: 6px;
-    vertical-align: middle;
-  }
-
-  .toast {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: #1a1a2e;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 24px;
-    font-size: 13px;
-    font-weight: 600;
-    opacity: 0;
-    transition: all 0.3s;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 200;
-  }
+  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1a1a2e; color: white; padding: 10px 20px; border-radius: 24px; font-size: 13px; font-weight: 600; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 400; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  .all-settled {
-    text-align: center;
-    padding: 30px 20px;
-    background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
-    border-radius: 16px;
-  }
+  .all-settled { text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: 16px; }
   .all-settled .icon { font-size: 56px; margin-bottom: 10px; }
   .all-settled p { font-size: 16px; font-weight: 700; color: var(--success); }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>✈️ 旅行割り勘</h1>
-  <p>みんなの支出を公平に分けよう</p>
-  <button class="share-btn" onclick="shareData()">🔗 共有</button>
-</header>
-<div id="shared-banner" class="shared-banner">👀 共有データを表示しています（読み取り専用）</div>
+<!-- ウェルカム画面 -->
+<div id="overlay-welcome" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon">✈️</div>
+    <div class="overlay-title">旅行割り勘</div>
+    <div class="overlay-sub">ルームを作成してURLを共有すれば<br>みんなでリアルタイムに入力できます</div>
+    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px">
+      ＋ 新しいルームを作成
+    </button>
+  </div>
+</div>
 
-<!-- メンバーページ -->
+<!-- ローディング画面 -->
+<div id="overlay-loading" class="overlay hidden">
+  <div class="spinner"></div>
+  <div style="color:var(--subtext);font-size:14px;font-weight:600">読み込み中...</div>
+</div>
+
+<!-- エラー画面 -->
+<div id="overlay-error" class="overlay hidden">
+  <div class="overlay-card">
+    <div class="overlay-icon">😕</div>
+    <div class="overlay-title">ルームが見つかりません</div>
+    <div class="overlay-sub">このルームは存在しないか<br>URLが正しくありません</div>
+    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px">
+      新しいルームを作成
+    </button>
+  </div>
+</div>
+
+<!-- メインアプリ -->
+<div id="app-shell" class="hidden">
+
+<header>
+  <div class="rt-indicator">
+    <div id="rt-dot" class="rt-dot connecting"></div>
+  </div>
+  <h1>✈️ 旅行割り勘</h1>
+  <div id="header-room" class="header-room"></div>
+  <button class="share-btn" onclick="shareRoom()">🔗 共有</button>
+</header>
+
 <div id="page-members" class="page active">
   <div class="card">
     <div class="card-title">メンバーを追加</div>
@@ -313,15 +262,11 @@
   <div class="card">
     <div class="card-title">メンバー一覧 <span id="member-count" class="badge">0</span></div>
     <div id="member-list">
-      <div class="empty-state">
-        <div class="icon">👥</div>
-        <p>メンバーを追加してください</p>
-      </div>
+      <div class="empty-state"><div class="icon">👥</div><p>メンバーを追加してください</p></div>
     </div>
   </div>
 </div>
 
-<!-- 支出ページ -->
 <div id="page-expenses" class="page">
   <div class="card">
     <div class="card-title">支出を記録</div>
@@ -337,15 +282,11 @@
   <div class="card">
     <div class="card-title">支出履歴 <span id="expense-count" class="badge">0</span></div>
     <div id="expense-list">
-      <div class="empty-state">
-        <div class="icon">🧾</div>
-        <p>支出を記録してください</p>
-      </div>
+      <div class="empty-state"><div class="icon">🧾</div><p>支出を記録してください</p></div>
     </div>
   </div>
 </div>
 
-<!-- 精算ページ -->
 <div id="page-settle" class="page">
   <div id="settle-content">
     <div class="empty-state" style="padding-top:60px">
@@ -355,92 +296,138 @@
   </div>
 </div>
 
-<!-- ナビゲーション -->
 <nav>
   <button class="active" onclick="switchPage('members', this)">
-    <span class="icon">👥</span>
-    <span class="label">メンバー</span>
+    <span class="icon">👥</span><span class="label">メンバー</span>
   </button>
   <button onclick="switchPage('expenses', this)">
-    <span class="icon">🧾</span>
-    <span class="label">支出</span>
+    <span class="icon">🧾</span><span class="label">支出</span>
   </button>
   <button onclick="switchPage('settle', this)">
-    <span class="icon">💰</span>
-    <span class="label">精算</span>
+    <span class="icon">💰</span><span class="label">精算</span>
   </button>
 </nav>
+
+</div><!-- #app-shell -->
 
 <div id="toast" class="toast"></div>
 
 <script>
+  const SUPABASE_URL = 'https://xnolsngmgwfmtocokzdl.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_amc-ftmv2uDIbhFAPyhWPg_ZNT2lFr0';
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
   const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
 
-  let isSharedView = false;
+  let roomId = null;
+  let state  = { members: [], expenses: [] };
+  let rtChannel = null;
 
-  function loadFromHash() {
-    const hash = location.hash;
-    if (!hash.startsWith('#d=')) return null;
-    try {
-      const encoded = hash.slice(3);
-      const json = decodeURIComponent(escape(atob(encoded)));
-      const data = JSON.parse(json);
-      if (Array.isArray(data.members) && Array.isArray(data.expenses)) return data;
-    } catch (e) {}
-    return null;
+  // ---- オーバーレイ ----
+  function showOverlay(name) {
+    ['welcome','loading','error'].forEach(n =>
+      document.getElementById('overlay-' + n).classList.toggle('hidden', n !== name)
+    );
+    document.getElementById('app-shell').classList.add('hidden');
   }
 
-  const sharedData = loadFromHash();
-  let state;
-  if (sharedData) {
-    state = sharedData;
-    isSharedView = true;
-    document.getElementById('shared-banner').classList.add('visible');
-  } else {
-    state = JSON.parse(localStorage.getItem('warikan') || '{"members":[],"expenses":[]}');
+  function showApp() {
+    ['welcome','loading','error'].forEach(n =>
+      document.getElementById('overlay-' + n).classList.add('hidden')
+    );
+    document.getElementById('app-shell').classList.remove('hidden');
   }
 
-  function save() {
-    if (!isSharedView) localStorage.setItem('warikan', JSON.stringify(state));
+  // ---- ルーム ----
+  function generateId() {
+    return Math.random().toString(36).slice(2, 10).toUpperCase();
   }
 
-  function shareData() {
-    if (state.members.length === 0 && state.expenses.length === 0) {
-      showToast('メンバーか支出を追加してから共有してください');
-      return;
-    }
-    const json = JSON.stringify(state);
-    const encoded = btoa(unescape(encodeURIComponent(json)));
-    const url = location.origin + location.pathname + '#d=' + encoded;
-    navigator.clipboard.writeText(url).then(() => {
-      showToast('共有URLをコピーしました');
-    }).catch(() => {
+  async function createRoom() {
+    showOverlay('loading');
+    const id = generateId();
+    const { error } = await db.from('rooms').insert({ id, members: [], expenses: [] });
+    if (error) { console.error(error); showOverlay('error'); return; }
+    roomId = id;
+    state  = { members: [], expenses: [] };
+    history.pushState(null, '', '?room=' + id);
+    document.getElementById('header-room').textContent = 'Room: ' + id;
+    subscribeToRoom(id);
+    showApp();
+    renderAll();
+  }
+
+  async function loadRoom(id) {
+    showOverlay('loading');
+    const { data, error } = await db.from('rooms').select().eq('id', id).single();
+    if (error || !data) { showOverlay('error'); return; }
+    roomId = id;
+    state  = { members: data.members || [], expenses: data.expenses || [] };
+    document.getElementById('header-room').textContent = 'Room: ' + id;
+    subscribeToRoom(id);
+    showApp();
+    renderAll();
+  }
+
+  function subscribeToRoom(id) {
+    if (rtChannel) { db.removeChannel(rtChannel); rtChannel = null; }
+    setRtStatus('connecting');
+    rtChannel = db.channel('room-' + id)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'rooms', filter: 'id=eq.' + id
+      }, (payload) => {
+        const next = { members: payload.new.members || [], expenses: payload.new.expenses || [] };
+        if (JSON.stringify(next) === JSON.stringify(state)) return;
+        state = next;
+        renderAll();
+        showToast('🔄 データが更新されました');
+      })
+      .subscribe((status) => {
+        setRtStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
+      });
+  }
+
+  function setRtStatus(s) {
+    document.getElementById('rt-dot').className = 'rt-dot ' + s;
+  }
+
+  async function save() {
+    if (!roomId) return;
+    const { error } = await db.from('rooms')
+      .update({ members: state.members, expenses: state.expenses })
+      .eq('id', roomId);
+    if (error) console.error('save error:', error);
+  }
+
+  async function shareRoom() {
+    const url = location.origin + location.pathname + '?room=' + roomId;
+    try { await navigator.clipboard.writeText(url); }
+    catch {
       const ta = document.createElement('textarea');
-      ta.value = url;
-      ta.style.cssText = 'position:fixed;top:-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); showToast('共有URLをコピーしました'); }
-      catch (e) { showToast('コピーに失敗しました'); }
+      ta.value = url; ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
       document.body.removeChild(ta);
-    });
+    }
+    showToast('共有URLをコピーしました');
   }
 
+  // ---- Toast ----
   function showToast(msg) {
     const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
+    t.textContent = msg; t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2000);
   }
 
+  // ---- ユーティリティ ----
   function colorFor(name) {
     let h = 0;
     for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
     return COLORS[Math.abs(h) % COLORS.length];
   }
-
-  function initials(name) {
-    return name.slice(0, 1).toUpperCase();
+  function initials(name) { return name.slice(0, 1).toUpperCase(); }
+  function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // ---- ページ切替 ----
@@ -456,24 +443,23 @@
   // ---- メンバー ----
   function addMember() {
     const input = document.getElementById('member-input');
-    const name = input.value.trim();
-    if (!name) { showToast('名前を入力してください'); return; }
+    const name  = input.value.trim();
+    if (!name)                        { showToast('名前を入力してください'); return; }
     if (state.members.includes(name)) { showToast('同じ名前のメンバーがいます'); return; }
     state.members.push(name);
-    save();
     input.value = '';
     renderMembers();
+    save();
     showToast(`${name} を追加しました`);
   }
 
   function removeMember(name) {
     if (state.expenses.some(e => e.payer === name)) {
-      showToast(`${name} の支出記録があるため削除できません`);
-      return;
+      showToast(`${name} の支出記録があるため削除できません`); return;
     }
     state.members = state.members.filter(m => m !== name);
-    save();
     renderMembers();
+    save();
     showToast(`${name} を削除しました`);
   }
 
@@ -487,7 +473,6 @@
     const totals = {};
     state.members.forEach(m => totals[m] = 0);
     state.expenses.forEach(e => { if (totals[e.payer] !== undefined) totals[e.payer] += e.amount; });
-
     list.innerHTML = state.members.map(m => `
       <div class="member-chip">
         <div class="chip-left">
@@ -498,41 +483,38 @@
           </div>
         </div>
         <button class="btn btn-danger" onclick="removeMember('${esc(m)}')">削除</button>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
   // ---- 支出 ----
   function renderExpenseForm() {
     const sel = document.getElementById('expense-payer');
-    const current = sel.value;
+    const cur = sel.value;
     sel.innerHTML = '<option value="">支払った人を選択</option>' +
-      state.members.map(m => `<option value="${esc(m)}" ${m===current?'selected':''}>${esc(m)}</option>`).join('');
+      state.members.map(m => `<option value="${esc(m)}"${m===cur?' selected':''}>${esc(m)}</option>`).join('');
   }
 
   function addExpense() {
     const payer  = document.getElementById('expense-payer').value;
     const desc   = document.getElementById('expense-desc').value.trim();
     const amount = parseFloat(document.getElementById('expense-amount').value);
-
-    if (!payer)          { showToast('支払った人を選択してください'); return; }
-    if (!desc)           { showToast('内容を入力してください'); return; }
-    if (!amount || amount <= 0) { showToast('正しい金額を入力してください'); return; }
-
+    if (!payer)               { showToast('支払った人を選択してください'); return; }
+    if (!desc)                { showToast('内容を入力してください'); return; }
+    if (!amount || amount<=0) { showToast('正しい金額を入力してください'); return; }
     state.expenses.push({ id: Date.now(), payer, desc, amount: Math.round(amount) });
-    save();
-    document.getElementById('expense-desc').value = '';
+    document.getElementById('expense-desc').value   = '';
     document.getElementById('expense-amount').value = '';
     renderExpenses();
     renderMembers();
+    save();
     showToast('支出を追加しました');
   }
 
   function removeExpense(id) {
     state.expenses = state.expenses.filter(e => e.id !== id);
-    save();
     renderExpenses();
     renderMembers();
+    save();
     showToast('支出を削除しました');
   }
 
@@ -552,53 +534,40 @@
         </div>
         <div class="expense-amount">¥${e.amount.toLocaleString()}</div>
         <button class="btn btn-danger" onclick="removeExpense(${e.id})">削除</button>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
   // ---- 精算計算 ----
   function calcSettlement() {
     const n = state.members.length;
     if (n < 2 || state.expenses.length === 0) return null;
-
     const total = state.expenses.reduce((s, e) => s + e.amount, 0);
     const share = total / n;
-
-    const paid = {};
+    const paid  = {};
     state.members.forEach(m => paid[m] = 0);
     state.expenses.forEach(e => { if (paid[e.payer] !== undefined) paid[e.payer] += e.amount; });
-
-    // net balance (正=受取, 負=支払)
     const balance = {};
     state.members.forEach(m => { balance[m] = paid[m] - share; });
-
-    // 最小回数の精算
-    const transactions = [];
-    const creditors = state.members.filter(m => balance[m] > 0.5).map(m => ({ name: m, amount: balance[m] }));
+    const creditors = state.members.filter(m => balance[m] >  0.5).map(m => ({ name: m, amount:  balance[m] }));
     const debtors   = state.members.filter(m => balance[m] < -0.5).map(m => ({ name: m, amount: -balance[m] }));
-
-    creditors.sort((a, b) => b.amount - a.amount);
-    debtors.sort((a, b) => b.amount - a.amount);
-
+    creditors.sort((a,b) => b.amount - a.amount);
+    debtors.sort((a,b)   => b.amount - a.amount);
+    const transactions = [];
     let ci = 0, di = 0;
     while (ci < creditors.length && di < debtors.length) {
       const c = creditors[ci], d = debtors[di];
       const amount = Math.min(c.amount, d.amount);
       transactions.push({ from: d.name, to: c.name, amount: Math.round(amount) });
-      c.amount -= amount;
-      d.amount -= amount;
+      c.amount -= amount; d.amount -= amount;
       if (c.amount < 0.5) ci++;
       if (d.amount < 0.5) di++;
     }
-
-    return { total, share, paid, balance, transactions };
+    return { total, share, balance, transactions };
   }
 
   function renderSettle() {
     const content = document.getElementById('settle-content');
-    const n = state.members.length;
-
-    if (n < 2) {
+    if (state.members.length < 2) {
       content.innerHTML = '<div class="empty-state" style="padding-top:60px"><div class="icon">👥</div><p>2人以上のメンバーを追加してください</p></div>';
       return;
     }
@@ -606,29 +575,16 @@
       content.innerHTML = '<div class="empty-state" style="padding-top:60px"><div class="icon">🧾</div><p>支出を追加してください</p></div>';
       return;
     }
-
-    const { total, share, paid, balance, transactions } = calcSettlement();
-
-    let html = '';
-
-    // サマリー
-    html += `<div class="card">
+    const { total, share, balance, transactions } = calcSettlement();
+    let html = `<div class="card">
       <div class="card-title">旅行の概要</div>
       <div class="summary-grid">
-        <div class="summary-box">
-          <div class="label">合計金額</div>
-          <div class="value" style="font-size:18px">¥${total.toLocaleString()}</div>
-        </div>
-        <div class="summary-box">
-          <div class="label">1人あたり</div>
-          <div class="value" style="font-size:18px">¥${Math.round(share).toLocaleString()}</div>
-        </div>
-      </div>`;
-
-    // 各自のバランス
-    html += '<div class="card-title" style="margin-top:4px">各自の収支</div>';
+        <div class="summary-box"><div class="label">合計金額</div><div class="value" style="font-size:18px">¥${total.toLocaleString()}</div></div>
+        <div class="summary-box"><div class="label">1人あたり</div><div class="value" style="font-size:18px">¥${Math.round(share).toLocaleString()}</div></div>
+      </div>
+      <div class="card-title" style="margin-top:4px">各自の収支</div>`;
     state.members.forEach(m => {
-      const b = balance[m];
+      const b   = balance[m];
       const cls = b > 0.5 ? 'positive' : b < -0.5 ? 'negative' : 'zero';
       const sign = b > 0.5 ? '+' : '';
       html += `<div class="balance-bar ${cls}">
@@ -639,10 +595,7 @@
         <span class="bal-val">${sign}¥${Math.round(Math.abs(b)).toLocaleString()} ${b > 0.5 ? '受取' : b < -0.5 ? '支払' : '±0'}</span>
       </div>`;
     });
-    html += '</div>';
-
-    // 精算
-    html += `<div class="card"><div class="card-title">精算方法</div>`;
+    html += `</div><div class="card"><div class="card-title">精算方法</div>`;
     if (transactions.length === 0) {
       html += `<div class="all-settled"><div class="icon">🎉</div><p>全員の支払いは均等です！<br>精算不要です</p></div>`;
     } else {
@@ -658,22 +611,23 @@
       });
     }
     html += '</div>';
-
     content.innerHTML = html;
   }
 
-  // XSS対策
-  function esc(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  function renderAll() {
+    renderMembers();
+    renderExpenses();
+    renderExpenseForm();
+    if (document.getElementById('page-settle').classList.contains('active')) renderSettle();
   }
 
-  // Enterキーで追加
-  document.getElementById('member-input').addEventListener('keydown', e => { if (e.key === 'Enter') addMember(); });
+  document.getElementById('member-input').addEventListener('keydown',   e => { if (e.key === 'Enter') addMember(); });
   document.getElementById('expense-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
 
-  // 初期描画
-  renderMembers();
-  renderExpenses();
+  // ---- 起動 ----
+  const urlRoomId = new URLSearchParams(location.search).get('room');
+  if (urlRoomId) loadRoom(urlRoomId);
+  else           showOverlay('welcome');
 </script>
 </body>
 </html>
