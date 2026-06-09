@@ -351,25 +351,23 @@
   }
 
   // ---- ルーム ----
-  function generateId() {
-    return Math.random().toString(36).slice(2, 10).toUpperCase();
-  }
-
   async function createRoom() {
     showOverlay('loading');
     try {
-      const id = generateId();
-      const { error } = await db.from('rooms').insert({ id, members: [], expenses: [] });
+      const { data, error } = await db.from('rooms')
+        .insert({ members: [], expenses: [] })
+        .select()
+        .single();
       if (error) {
         console.error('createRoom error:', error);
         showErrMsg('ルームの作成に失敗しました', `${error.message}\n\nSupabase の rooms テーブルが存在するか、RLS ポリシーが設定されているか確認してください。`);
         return;
       }
-      roomId = id;
+      roomId = String(data.id);
       state  = { members: [], expenses: [] };
-      history.pushState(null, '', '?room=' + id);
-      document.getElementById('header-room').textContent = 'Room: ' + id;
-      subscribeToRoom(id);
+      history.pushState(null, '', '?room=' + roomId);
+      document.getElementById('header-room').textContent = 'Room: ' + roomId;
+      subscribeToRoom(roomId);
       showApp();
       renderAll();
     } catch (err) {
