@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>旅行割り勘</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -42,6 +43,7 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
+    overflow-y: auto;
   }
   .overlay-card {
     background: white;
@@ -64,6 +66,28 @@
     margin: 0 auto 18px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- 設定フォーム ---- */
+  .config-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+  }
+  .config-fields { text-align: left; margin: 4px 0 16px; }
+  .cfg-group { margin-bottom: 10px; }
+  .cfg-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  .config-fields input { margin-bottom: 0; font-size: 13px; padding: 10px 12px; }
+  .cfg-error { color: var(--danger); font-size: 12px; margin-bottom: 10px; display: none; text-align: left; }
+  .config-hint { font-size: 11px; color: var(--subtext); margin-top: 14px; line-height: 1.8; text-align: left; }
+  .btn-outline {
+    background: transparent; color: var(--subtext);
+    border: 1.5px solid var(--border);
+    font-size: 13px; padding: 9px 16px; margin-top: 10px;
+  }
 
   /* ---- ヘッダー ---- */
   header {
@@ -88,21 +112,29 @@
   }
   .share-btn:active { background: rgba(255,255,255,0.38); }
 
-  .rt-indicator {
+  .header-left {
     position: absolute;
     left: 14px; top: 50%;
     transform: translateY(-50%);
-    display: flex; align-items: center; gap: 5px;
+    display: flex; align-items: center; gap: 7px;
   }
   .rt-dot {
     width: 9px; height: 9px;
     border-radius: 50%;
     background: rgba(255,255,255,0.3);
     transition: background 0.3s;
+    flex-shrink: 0;
   }
   .rt-dot.connected  { background: #69f0ae; }
   .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
   @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .settings-btn {
+    background: none; border: none;
+    color: rgba(255,255,255,0.65);
+    font-size: 15px; cursor: pointer;
+    padding: 2px 3px; line-height: 1;
+  }
+  .settings-btn:hover { color: white; }
 
   /* ---- タブナビ ---- */
   nav {
@@ -219,14 +251,62 @@
 </head>
 <body>
 
+<!-- Firebase設定画面（初回起動時 / 設定変更時） -->
+<div id="overlay-config" class="overlay">
+  <div class="config-card">
+    <div class="overlay-icon">🔥</div>
+    <div class="overlay-title">Firebase 設定</div>
+    <div class="overlay-sub" style="margin-bottom:12px">
+      Firebase コンソール →「プロジェクト設定」→「ウェブアプリ」の<br>firebaseConfig をコピーして入力してください
+    </div>
+    <div class="config-fields">
+      <div class="cfg-group">
+        <label class="cfg-label">apiKey <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-apiKey" type="text" placeholder="AIzaSy...">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">authDomain <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">projectId <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-projectId" type="text" placeholder="your-project-id">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">appId <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">storageBucket（省略可）</label>
+        <input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">messagingSenderId（省略可）</label>
+        <input id="cfg-messagingSenderId" type="text" placeholder="123456789012">
+      </div>
+    </div>
+    <div id="cfg-error" class="cfg-error"></div>
+    <button class="btn btn-primary btn-full" onclick="applyConfig()" style="font-size:16px;padding:15px">
+      保存して続ける
+    </button>
+    <div class="config-hint">
+      ※ Firestore データベースを作成し、セキュリティルールで読み書きを許可してください<br>
+      ※ 設定はこのブラウザの localStorage に保存されます（サーバーには送信されません）
+    </div>
+  </div>
+</div>
+
 <!-- ウェルカム画面 -->
-<div id="overlay-welcome" class="overlay">
+<div id="overlay-welcome" class="overlay hidden">
   <div class="overlay-card">
     <div class="overlay-icon">✈️</div>
     <div class="overlay-title">旅行割り勘</div>
     <div class="overlay-sub">ルームを作成してURLを共有すれば<br>みんなでリアルタイムに入力できます</div>
     <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px">
       ＋ 新しいルームを作成
+    </button>
+    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()" style="margin-top:10px">
+      ⚙️ Firebase設定を変更
     </button>
   </div>
 </div>
@@ -243,8 +323,11 @@
     <div class="overlay-icon">😕</div>
     <div class="overlay-title" id="error-title">エラーが発生しました</div>
     <div class="overlay-sub" id="error-detail" style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
-    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px">
+    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px;margin-bottom:8px">
       新しいルームを作成
+    </button>
+    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()">
+      ⚙️ Firebase設定を変更
     </button>
   </div>
 </div>
@@ -253,8 +336,9 @@
 <div id="app-shell" class="hidden">
 
 <header>
-  <div class="rt-indicator">
+  <div class="header-left">
     <div id="rt-dot" class="rt-dot connecting"></div>
+    <button class="settings-btn" onclick="resetConfig()" title="Firebase設定を変更">⚙️</button>
   </div>
   <h1>✈️ 旅行割り勘</h1>
   <div id="header-room" class="header-room"></div>
@@ -328,25 +412,97 @@
 <div id="toast" class="toast"></div>
 
 <script>
-  const SUPABASE_URL = 'https://xnolsngmgwfmtocokzdl.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_amc-ftmv2uDIbhFAPyhWPg_ZNT2lFr0';
-
-  if (!window.supabase) {
-    document.getElementById('overlay-welcome').classList.add('hidden');
-    showErrMsg('ライブラリ読み込みエラー', 'Supabase JS の CDN 読み込みに失敗しました。ネットワーク接続を確認してください。');
-  }
-
-  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
+  const CONFIG_KEY = 'warikan_firebase_config';
   const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
 
   let roomId = null;
   let state  = { members: [], expenses: [] };
-  let rtChannel = null;
+  let db     = null;
+  let unsubscribeRoom = null;
+
+  // ---- Firebase設定管理 ----
+  function loadConfigFromStorage() {
+    try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
+  }
+
+  function saveConfigToStorage(cfg) {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+  }
+
+  function initFirebase(cfg) {
+    if (firebase.apps.length === 0) {
+      firebase.initializeApp(cfg);
+    }
+    db = firebase.firestore();
+  }
+
+  function showConfigOverlay() {
+    const saved = loadConfigFromStorage();
+    if (saved) {
+      document.getElementById('cfg-apiKey').value             = saved.apiKey || '';
+      document.getElementById('cfg-authDomain').value         = saved.authDomain || '';
+      document.getElementById('cfg-projectId').value          = saved.projectId || '';
+      document.getElementById('cfg-appId').value              = saved.appId || '';
+      document.getElementById('cfg-storageBucket').value      = saved.storageBucket || '';
+      document.getElementById('cfg-messagingSenderId').value  = saved.messagingSenderId || '';
+    }
+    document.getElementById('cfg-error').style.display = 'none';
+    showOverlay('config');
+  }
+
+  function applyConfig() {
+    const apiKey            = document.getElementById('cfg-apiKey').value.trim();
+    const authDomain        = document.getElementById('cfg-authDomain').value.trim();
+    const projectId         = document.getElementById('cfg-projectId').value.trim();
+    const appId             = document.getElementById('cfg-appId').value.trim();
+    const storageBucket     = document.getElementById('cfg-storageBucket').value.trim();
+    const messagingSenderId = document.getElementById('cfg-messagingSenderId').value.trim();
+
+    const errEl = document.getElementById('cfg-error');
+    if (!apiKey || !authDomain || !projectId || !appId) {
+      errEl.textContent = '必須項目（apiKey, authDomain, projectId, appId）を入力してください';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const cfg = { apiKey, authDomain, projectId, appId };
+    if (storageBucket)     cfg.storageBucket     = storageBucket;
+    if (messagingSenderId) cfg.messagingSenderId = messagingSenderId;
+
+    try {
+      if (firebase.apps.length > 0) {
+        // Firebase already initialized — save new config and reload to reinitialize cleanly
+        saveConfigToStorage(cfg);
+        location.reload();
+        return;
+      }
+      initFirebase(cfg);
+      saveConfigToStorage(cfg);
+      errEl.style.display = 'none';
+      const urlRoomId = new URLSearchParams(location.search).get('room');
+      if (urlRoomId) loadRoom(urlRoomId);
+      else showOverlay('welcome');
+    } catch (err) {
+      errEl.textContent = err.message || 'Firebase初期化に失敗しました';
+      errEl.style.display = 'block';
+    }
+  }
+
+  async function resetConfig() {
+    if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+    roomId = null;
+    state  = { members: [], expenses: [] };
+    history.pushState(null, '', location.pathname);
+    db = null;
+    if (firebase.apps.length > 0) {
+      await Promise.all(firebase.apps.map(a => a.delete()));
+    }
+    showConfigOverlay();
+  }
 
   // ---- オーバーレイ ----
   function showOverlay(name) {
-    ['welcome','loading','error'].forEach(n =>
+    ['config','welcome','loading','error'].forEach(n =>
       document.getElementById('overlay-' + n).classList.toggle('hidden', n !== name)
     );
     document.getElementById('app-shell').classList.add('hidden');
@@ -359,7 +515,7 @@
   }
 
   function showApp() {
-    ['welcome','loading','error'].forEach(n =>
+    ['config','welcome','loading','error'].forEach(n =>
       document.getElementById('overlay-' + n).classList.add('hidden')
     );
     document.getElementById('app-shell').classList.remove('hidden');
@@ -369,16 +525,8 @@
   async function createRoom() {
     showOverlay('loading');
     try {
-      const { data, error } = await db.from('rooms')
-        .insert({ name: 'room', members: [], expenses: [] })
-        .select()
-        .single();
-      if (error) {
-        console.error('createRoom error:', error);
-        showErrMsg('ルームの作成に失敗しました', `${error.message}\n\nSupabase の rooms テーブルが存在するか、RLS ポリシーが設定されているか確認してください。`);
-        return;
-      }
-      roomId = String(data.id);
+      const ref = await db.collection('rooms').add({ members: [], expenses: [] });
+      roomId = ref.id;
       state  = { members: [], expenses: [] };
       history.pushState(null, '', '?room=' + roomId);
       document.getElementById('header-room').textContent = 'Room: ' + roomId;
@@ -386,20 +534,21 @@
       showApp();
       renderAll();
     } catch (err) {
-      console.error('createRoom exception:', err);
-      showErrMsg('予期しないエラー', err.message || String(err));
+      console.error('createRoom error:', err);
+      showErrMsg('ルームの作成に失敗しました',
+        err.message + '\n\nFirestoreのセキュリティルールで書き込みが許可されているか確認してください。');
     }
   }
 
   async function loadRoom(id) {
     showOverlay('loading');
     try {
-      const { data, error } = await db.from('rooms').select().eq('id', id).single();
-      if (error || !data) {
-        console.error('loadRoom error:', error);
-        showErrMsg('ルームが見つかりません', error ? error.message : 'このルームは存在しないか、URLが正しくありません。');
+      const docSnap = await db.collection('rooms').doc(id).get();
+      if (!docSnap.exists) {
+        showErrMsg('ルームが見つかりません', 'このルームは存在しないか、URLが正しくありません。');
         return;
       }
+      const data = docSnap.data();
       roomId = id;
       state  = { members: data.members || [], expenses: data.expenses || [] };
       document.getElementById('header-room').textContent = 'Room: ' + id;
@@ -407,27 +556,29 @@
       showApp();
       renderAll();
     } catch (err) {
-      console.error('loadRoom exception:', err);
+      console.error('loadRoom error:', err);
       showErrMsg('予期しないエラー', err.message || String(err));
     }
   }
 
   function subscribeToRoom(id) {
-    if (rtChannel) { db.removeChannel(rtChannel); rtChannel = null; }
+    if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
     setRtStatus('connecting');
-    rtChannel = db.channel('room-' + id)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'rooms', filter: 'id=eq.' + id
-      }, (payload) => {
-        const next = { members: payload.new.members || [], expenses: payload.new.expenses || [] };
-        if (JSON.stringify(next) === JSON.stringify(state)) return;
-        state = next;
-        renderAll();
-        showToast('🔄 データが更新されました');
-      })
-      .subscribe((status) => {
-        setRtStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
-      });
+    let firstSnapshot = true;
+    unsubscribeRoom = db.collection('rooms').doc(id).onSnapshot((docSnap) => {
+      setRtStatus('connected');
+      if (!docSnap.exists) return;
+      if (firstSnapshot) { firstSnapshot = false; return; }
+      const data = docSnap.data();
+      const next = { members: data.members || [], expenses: data.expenses || [] };
+      if (JSON.stringify(next) === JSON.stringify(state)) return;
+      state = next;
+      renderAll();
+      showToast('🔄 データが更新されました');
+    }, (err) => {
+      console.error('onSnapshot error:', err);
+      setRtStatus('connecting');
+    });
   }
 
   function setRtStatus(s) {
@@ -435,11 +586,15 @@
   }
 
   async function save() {
-    if (!roomId) return;
-    const { error } = await db.from('rooms')
-      .update({ members: state.members, expenses: state.expenses })
-      .eq('id', roomId);
-    if (error) console.error('save error:', error);
+    if (!roomId || !db) return;
+    try {
+      await db.collection('rooms').doc(roomId).update({
+        members:  state.members,
+        expenses: state.expenses
+      });
+    } catch (err) {
+      console.error('save error:', err);
+    }
   }
 
   async function shareRoom() {
@@ -538,13 +693,11 @@
   }
 
   function onAmountInput() {
-    if (document.getElementById('expense-custom').checked) {
-      updateSplitTotal();
-    }
+    if (document.getElementById('expense-custom').checked) updateSplitTotal();
   }
 
   function toggleSplitMode() {
-    const custom = document.getElementById('expense-custom').checked;
+    const custom   = document.getElementById('expense-custom').checked;
     const splitDiv = document.getElementById('split-inputs');
     if (custom) {
       if (state.members.length === 0) {
@@ -560,8 +713,8 @@
   }
 
   function buildSplitInputs() {
-    const amount = parseInt(document.getElementById('expense-amount').value) || 0;
-    const n = state.members.length;
+    const amount    = parseInt(document.getElementById('expense-amount').value) || 0;
+    const n         = state.members.length;
     const perPerson = n > 0 ? Math.floor(amount / n) : 0;
     const remainder = amount - perPerson * n;
 
@@ -622,8 +775,8 @@
     }
 
     state.expenses.push({ id: Date.now(), payer, desc, amount: Math.round(amount), splits });
-    document.getElementById('expense-desc').value   = '';
-    document.getElementById('expense-amount').value = '';
+    document.getElementById('expense-desc').value     = '';
+    document.getElementById('expense-amount').value   = '';
     document.getElementById('expense-custom').checked = false;
     document.getElementById('split-inputs').classList.add('hidden');
     renderExpenses();
@@ -727,8 +880,8 @@
       <div class="summary-box"><div class="label">合計金額</div><div class="value">¥${total.toLocaleString()}</div></div>
       <div class="card-title" style="margin-top:4px">各自の収支</div>`;
     state.members.forEach(m => {
-      const b   = balance[m];
-      const cls = b > 0.5 ? 'positive' : b < -0.5 ? 'negative' : 'zero';
+      const b    = balance[m];
+      const cls  = b > 0.5 ? 'positive' : b < -0.5 ? 'negative' : 'zero';
       const sign = b > 0.5 ? '+' : '';
       html += `<div class="balance-bar ${cls}">
         <div style="display:flex;align-items:center;gap:8px">
@@ -768,9 +921,24 @@
   document.getElementById('expense-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
 
   // ---- 起動 ----
-  const urlRoomId = new URLSearchParams(location.search).get('room');
-  if (urlRoomId) loadRoom(urlRoomId);
-  else           showOverlay('welcome');
+  if (typeof firebase === 'undefined') {
+    showErrMsg('ライブラリ読み込みエラー',
+      'Firebase JS の CDN 読み込みに失敗しました。ネットワーク接続を確認してください。');
+  } else {
+    const savedConfig = loadConfigFromStorage();
+    if (savedConfig) {
+      try {
+        initFirebase(savedConfig);
+        const urlRoomId = new URLSearchParams(location.search).get('room');
+        if (urlRoomId) loadRoom(urlRoomId);
+        else showOverlay('welcome');
+      } catch (err) {
+        console.error('Firebase init error:', err);
+        showConfigOverlay();
+      }
+    }
+    // else: overlay-config is visible by default, nothing to do
+  }
 </script>
 </body>
 </html>
