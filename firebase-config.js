@@ -1,18 +1,24 @@
-// 共通定数
-const APP_CONFIG_KEY = 'warikan_firebase_config';
-const APP_TRIPS_KEY  = 'travel_app_trips';
-const TRIPS_MAX      = 30;
-const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
+// ============================================================
+//  たびのあしあと - 共通設定・ユーティリティ
+// ============================================================
 
-// Firebase設定
-function loadFirebaseConfig() {
-  try { return JSON.parse(localStorage.getItem(APP_CONFIG_KEY)); } catch { return null; }
-}
-function saveFirebaseConfig(cfg) {
-  localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(cfg));
-}
-function initFirebaseApp(cfg) {
-  if (firebase.apps.length === 0) firebase.initializeApp(cfg);
+// ---- Firebase設定（直接記述） ----
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyBJiK4ehCuVW0-eRFH5Ew7L-e2KcKGKfZo",
+  authDomain:        "warikan-app-c48cb.firebaseapp.com",
+  projectId:         "warikan-app-c48cb",
+  storageBucket:     "warikan-app-c48cb.firebasestorage.app",
+  messagingSenderId: "68284401289",
+  appId:             "1:68284401289:web:3bd22bfd8788bf95b52858",
+};
+
+// 共通定数
+const APP_TRIPS_KEY = 'travel_app_trips';
+const TRIPS_MAX     = 30;
+const COLORS = ['#4f7dff','#7c5cfc','#f97316','#06b6d4','#22c55e','#f59e0b','#ef4444','#a855f7'];
+
+function initFirebaseApp() {
+  if (firebase.apps.length === 0) firebase.initializeApp(FIREBASE_CONFIG);
   return firebase.firestore();
 }
 
@@ -26,7 +32,7 @@ function saveTrip(trip) {
   localStorage.setItem(APP_TRIPS_KEY, JSON.stringify(trips.slice(0, TRIPS_MAX)));
 }
 
-// ユーティリティ
+// ---- ユーティリティ ----
 function esc(str) {
   return String(str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -51,12 +57,12 @@ function formatTripDate(startDate, endDate) {
   return '';
 }
 
-// テーマカラー
+// ---- テーマ ----
 const THEMES = {
-  ocean:  { label: 'オーシャン',  emoji: '🌊', primary: '#4f7dff', dark: '#3a63e0', g1: '#4f7dff', g2: '#7c5cfc' },
-  sunset: { label: 'サンセット',  emoji: '🌅', primary: '#ff7043', dark: '#e64a19', g1: '#ff7043', g2: '#ffa726' },
-  forest: { label: 'フォレスト',  emoji: '🌿', primary: '#2e7d32', dark: '#1b5e20', g1: '#2e7d32', g2: '#00897b' },
-  cherry: { label: 'チェリー',    emoji: '🌸', primary: '#e91e8c', dark: '#c1166d', g1: '#e91e8c', g2: '#f06292' },
+  ocean:  { label: 'スカイ',    color: '#0ea5e9', primary: '#0ea5e9', dark: '#0284c7', g1: '#0ea5e9', g2: '#6366f1' },
+  sunset: { label: 'サンセット', color: '#f97316', primary: '#f97316', dark: '#ea580c', g1: '#f97316', g2: '#fbbf24' },
+  forest: { label: 'フォレスト', color: '#16a34a', primary: '#16a34a', dark: '#15803d', g1: '#16a34a', g2: '#0d9488' },
+  cherry: { label: 'チェリー',   color: '#ec4899', primary: '#ec4899', dark: '#db2777', g1: '#ec4899', g2: '#f472b6' },
 };
 
 function applyTheme(key) {
@@ -66,6 +72,19 @@ function applyTheme(key) {
   s.setProperty('--primary-dark', t.dark);
   s.setProperty('--grad-start',   t.g1);
   s.setProperty('--grad-end',     t.g2);
+}
+
+// ---- ルームコード生成（6桁英数字） ----
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+// ---- Lucideアイコン描画ユーティリティ ----
+function renderIcons() {
+  if (window.lucide) lucide.createIcons();
 }
 
 function formatRelativeDate(isoStr) {

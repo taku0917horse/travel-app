@@ -3,22 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>割り勘</title>
+<title>精算</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --primary: #4f7dff; --primary-dark: #3a63e0;
-    --grad-start: #4f7dff; --grad-end: #7c5cfc;
-    --danger: #ff5252; --success: #4caf50;
-    --bg: #f0f2f8; --card: #ffffff;
-    --text: #1a1a2e; --subtext: #6b7280;
-    --border: #e5e7eb; --shadow: 0 2px 16px rgba(0,0,0,0.07);
+    --primary: #0ea5e9; --primary-dark: #0284c7;
+    --grad-start: #0ea5e9; --grad-end: #6366f1;
+    --danger: #ef4444; --success: #22c55e;
+    --bg: #f0f4f8; --card: #ffffff;
+    --text: #1e293b; --subtext: #64748b;
+    --border: #e2e8f0; --shadow: 0 2px 16px rgba(0,0,0,0.07);
   }
   body {
     font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
@@ -42,7 +43,7 @@
     box-shadow: 0 4px 24px rgba(0,0,0,0.1);
     text-align: center; width: 100%; max-width: 360px;
   }
-  .overlay-icon  { font-size: 60px; margin-bottom: 18px; }
+  .overlay-icon-wrap { margin-bottom: 18px; color: var(--subtext); display: flex; justify-content: center; }
   .overlay-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
   .overlay-sub   { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
   .spinner {
@@ -54,30 +55,6 @@
     margin: 0 auto 18px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ---- 設定フォーム ---- */
-  .config-card {
-    background: white; border-radius: 20px;
-    padding: 32px 24px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-    width: 100%; max-width: 400px; text-align: center;
-  }
-  .config-fields { text-align: left; margin: 4px 0 16px; }
-  .cfg-group  { margin-bottom: 10px; }
-  .cfg-label  {
-    font-size: 11px; color: var(--subtext); font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    margin-bottom: 4px; display: block;
-  }
-  .config-hint {
-    font-size: 11px; color: var(--subtext);
-    margin-top: 14px; line-height: 1.8; text-align: left;
-  }
-  .btn-outline {
-    background: transparent; color: var(--subtext);
-    border: 1.5px solid var(--border);
-    font-size: 13px; padding: 9px 16px; margin-top: 10px;
-  }
 
   /* ---- ヘッダー ---- */
   header {
@@ -104,28 +81,36 @@
     font-size: 17px; font-weight: 700;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .header-date { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+  .header-date { font-size: 11px; opacity: 0.75; margin-top: 2px; display: flex; align-items: center; justify-content: center; gap: 4px; }
   .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .rt-dot {
     width: 9px; height: 9px; border-radius: 50%;
     background: rgba(255,255,255,0.3); transition: background 0.3s; flex-shrink: 0;
   }
-  .rt-dot.connected  { background: #69f0ae; }
-  .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
+  .rt-dot.connected  { background: #4ade80; }
+  .rt-dot.connecting { background: #fbbf24; animation: blink 1s ease-in-out infinite; }
   @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
   .share-btn {
     background: rgba(255,255,255,0.22); border: none;
     color: white; border-radius: 9px;
     padding: 7px 13px; font-size: 13px; font-weight: 700;
     cursor: pointer; transition: background 0.15s;
+    display: flex; align-items: center; gap: 5px;
   }
   .share-btn:active { background: rgba(255,255,255,0.38); }
-  .settings-btn {
-    background: none; border: none;
-    color: rgba(255,255,255,0.65); font-size: 15px;
-    cursor: pointer; padding: 2px 3px; line-height: 1;
+
+  /* ---- フィーチャーナビ ---- */
+  .feature-nav {
+    background: white; display: flex; border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 50;
   }
-  .settings-btn:hover { color: white; }
+  .feature-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px 8px; border-bottom: 2px solid transparent;
+    text-decoration: none; color: var(--subtext); font-size: 10px; font-weight: 600;
+    transition: all 0.2s; gap: 3px;
+  }
+  .feature-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
   /* ---- タブナビ ---- */
   nav {
@@ -138,10 +123,9 @@
     flex: 1; background: none; border: none;
     padding: 10px 4px 8px; color: var(--subtext);
     cursor: pointer; display: flex; flex-direction: column;
-    align-items: center; gap: 3px; transition: color 0.2s;
+    align-items: center; gap: 3px; transition: color 0.2s; font-family: inherit;
   }
   nav button.active { color: var(--primary); }
-  nav button .icon  { font-size: 22px; }
   nav button .label { font-size: 10px; font-weight: 600; }
 
   /* ---- ページ ---- */
@@ -150,27 +134,36 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
   /* ---- カード ---- */
-  .card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
-  .card-title { font-size: 13px; font-weight: 700; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+  .card {
+    background: var(--card); border-radius: 16px;
+    padding: 16px; box-shadow: var(--shadow); margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 700; color: var(--subtext);
+    text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;
+  }
 
   /* ---- フォーム ---- */
   .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
   input, select {
     width: 100%; padding: 12px 14px;
-    border: 1.5px solid var(--border); border-radius: 10px;
+    border: 1.5px solid var(--border); border-radius: 12px;
     font-size: 15px; background: white; color: var(--text);
-    outline: none; transition: border-color 0.2s;
-    -webkit-appearance: none; appearance: none;
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
   }
-  input:focus, select:focus { border-color: var(--primary); }
+  input:focus, select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
+  }
   select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
   }
   .btn {
-    padding: 12px 20px; border: none; border-radius: 10px;
+    padding: 12px 20px; border: none; border-radius: 12px;
     font-size: 15px; font-weight: 600; cursor: pointer;
-    transition: all 0.15s; white-space: nowrap;
+    transition: all 0.15s; white-space: nowrap; font-family: inherit;
   }
   .btn:active { transform: scale(0.96); }
   .btn-primary { background: var(--primary); color: white; }
@@ -181,8 +174,8 @@
   /* ---- メンバー ---- */
   .member-chip {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px; background: #f8f9ff;
-    border-radius: 10px; margin-bottom: 6px;
+    padding: 10px 12px; background: #f8faff;
+    border-radius: 12px; margin-bottom: 6px;
   }
   .member-chip .name { font-size: 15px; font-weight: 600; }
   .member-chip .paid { font-size: 12px; color: var(--subtext); margin-top: 1px; }
@@ -197,21 +190,27 @@
   /* ---- 支出 ---- */
   .expense-item {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px;
+    padding: 12px; background: #f8faff; border-radius: 12px; margin-bottom: 8px;
     cursor: pointer; transition: background 0.15s;
   }
-  .expense-item:active { background: #e8edff; }
+  .expense-item:active { background: #e0f2fe; }
   .expense-info  { flex: 1; }
   .expense-desc  { font-size: 15px; font-weight: 600; }
   .expense-meta  { font-size: 12px; color: var(--subtext); margin-top: 2px; }
   .expense-splits { font-size: 11px; color: var(--subtext); margin-top: 3px; line-height: 1.6; }
   .expense-amount { font-size: 18px; font-weight: 700; color: var(--primary); margin: 0 8px 0 12px; }
-  .expense-chevron { color: var(--subtext); font-size: 18px; flex-shrink: 0; }
+  .expense-chevron { color: var(--subtext); display: flex; align-items: center; }
 
   /* ---- 傾斜配分フォーム ---- */
-  .split-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--subtext); cursor: pointer; margin-top: 8px; }
-  .split-toggle input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
-  .split-section { margin-top: 10px; padding: 12px; background: #f8f9ff; border-radius: 10px; }
+  .split-toggle {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: var(--subtext); cursor: pointer; margin-top: 8px;
+  }
+  .split-toggle input[type=checkbox] {
+    width: 16px; height: 16px; cursor: pointer;
+    accent-color: var(--primary); flex-shrink: 0;
+  }
+  .split-section { margin-top: 10px; padding: 12px; background: #f8faff; border-radius: 12px; }
   .split-row     { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .split-name    { font-size: 14px; font-weight: 600; min-width: 56px; flex-shrink: 0; }
   .split-row input { padding: 8px 10px; font-size: 14px; }
@@ -219,22 +218,25 @@
   .split-total-bar {
     font-size: 12px; font-weight: 600; padding: 6px 10px;
     border-radius: 8px; margin-top: 4px; text-align: center;
-    background: #e8f5e9; color: var(--success);
+    background: #dcfce7; color: var(--success);
   }
-  .split-total-bar.ng { background: #ffeaea; color: var(--danger); }
+  .split-total-bar.ng { background: #fee2e2; color: var(--danger); }
 
   /* ---- 精算 ---- */
   .settlement-row {
     display: flex; align-items: center; gap: 8px;
-    padding: 14px; background: #f8f9ff;
+    padding: 14px; background: #f8faff;
     border-radius: 12px; margin-bottom: 8px;
   }
   .settlement-row .from   { font-weight: 700; font-size: 15px; }
-  .settlement-row .arrow  { color: var(--primary); font-size: 18px; }
+  .settlement-row .arrow  { color: var(--primary); display: flex; align-items: center; }
   .settlement-row .to     { font-weight: 700; font-size: 15px; }
   .settlement-row .amount { margin-left: auto; font-size: 17px; font-weight: 700; color: var(--primary); }
 
-  .summary-box { background: #f8f9ff; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; }
+  .summary-box {
+    background: #f8faff; border-radius: 12px; padding: 12px;
+    text-align: center; margin-bottom: 12px;
+  }
   .summary-box .label { font-size: 11px; color: var(--subtext); margin-bottom: 4px; }
   .summary-box .value { font-size: 20px; font-weight: 700; color: var(--text); }
 
@@ -243,8 +245,8 @@
     margin-bottom: 6px; display: flex;
     align-items: center; justify-content: space-between;
   }
-  .balance-bar.positive { background: #e8f5e9; }
-  .balance-bar.negative { background: #ffeaea; }
+  .balance-bar.positive { background: #dcfce7; }
+  .balance-bar.negative { background: #fee2e2; }
   .balance-bar.zero     { background: #f3f4f6; }
   .balance-bar .bal-name { font-size: 14px; font-weight: 600; }
   .balance-bar .bal-val  { font-size: 15px; font-weight: 700; }
@@ -252,7 +254,7 @@
   .balance-bar.negative .bal-val { color: var(--danger); }
 
   .empty-state { text-align: center; padding: 40px 20px; color: var(--subtext); }
-  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state .icon { display: flex; justify-content: center; margin-bottom: 12px; }
   .empty-state p { font-size: 14px; }
 
   .badge {
@@ -264,7 +266,7 @@
   .toast {
     position: fixed; bottom: 90px; left: 50%;
     transform: translateX(-50%) translateY(20px);
-    background: #1a1a2e; color: white;
+    background: #1e293b; color: white;
     padding: 10px 20px; border-radius: 24px;
     font-size: 13px; font-weight: 600;
     opacity: 0; transition: all 0.3s; pointer-events: none;
@@ -274,25 +276,11 @@
 
   .all-settled {
     text-align: center; padding: 30px 20px;
-    background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+    background: linear-gradient(135deg, #dcfce7, #f0fdf4);
     border-radius: 16px;
   }
-  .all-settled .icon { font-size: 56px; margin-bottom: 10px; }
+  .all-settled .icon { display: flex; justify-content: center; margin-bottom: 10px; }
   .all-settled p { font-size: 16px; font-weight: 700; color: var(--success); }
-
-  /* ---- フィーチャーナビ ---- */
-  .feature-nav {
-    background: white; display: flex; border-bottom: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 50;
-  }
-  .feature-tab {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    padding: 10px 4px 8px; border-bottom: 2px solid transparent;
-    text-decoration: none; color: var(--subtext); font-size: 10px; font-weight: 600;
-    transition: all 0.2s; gap: 2px;
-  }
-  .feature-tab .ft-icon { font-size: 18px; }
-  .feature-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
   /* ---- 支出編集モーダル ---- */
   .modal-overlay {
@@ -313,9 +301,11 @@
   }
   .modal-title { font-size: 18px; font-weight: 700; }
   .modal-close {
-    background: none; border: none; font-size: 22px;
-    color: var(--subtext); cursor: pointer; padding: 4px; line-height: 1;
+    background: none; border: none;
+    color: var(--subtext); cursor: pointer; padding: 4px;
+    display: flex; align-items: center;
   }
+  .modal-close:active { color: var(--text); }
   .modal-field  { margin-bottom: 10px; }
   .modal-label  {
     font-size: 11px; color: var(--subtext); font-weight: 700;
@@ -324,69 +314,29 @@
   }
   .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
   .modal-del-btn {
-    flex: 1; padding: 13px 0; border: none; border-radius: 10px;
+    flex: 1; padding: 13px 0; border: none; border-radius: 12px;
     background: #fff0f0; color: var(--danger); font-size: 15px;
     font-weight: 600; cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: inherit;
   }
   .modal-del-btn:active  { transform: scale(0.96); }
   .modal-save-btn {
-    flex: 2; padding: 13px 0; border: none; border-radius: 10px;
+    flex: 2; padding: 13px 0; border: none; border-radius: 12px;
     background: var(--primary); color: white; font-size: 15px;
-    font-weight: 600; cursor: pointer; transition: all 0.15s;
+    font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit;
   }
   .modal-save-btn:active { background: var(--primary-dark); transform: scale(0.96); }
   .split-reset-note {
-    font-size: 11px; color: var(--subtext); background: #fffbe6;
+    font-size: 11px; color: var(--subtext); background: #fffbeb;
     border-radius: 8px; padding: 7px 10px; margin-top: 6px; display: none;
   }
+
+  /* ---- Lucideアイコン ---- */
+  [data-lucide] { display: inline-block; vertical-align: middle; }
 </style>
 </head>
 <body>
-
-<!-- Firebase設定画面 -->
-<div id="overlay-config" class="overlay">
-  <div class="config-card">
-    <div class="overlay-icon">🔥</div>
-    <div class="overlay-title">Firebase 設定</div>
-    <div class="overlay-sub" style="margin-bottom:12px">
-      Firebase コンソール →「プロジェクト設定」→「ウェブアプリ」の<br>firebaseConfig をコピーして入力してください
-    </div>
-    <div class="config-fields">
-      <div class="cfg-group">
-        <label class="cfg-label">apiKey <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-apiKey" type="text" placeholder="AIzaSy..." style="font-size:13px;padding:10px 12px">
-      </div>
-      <div class="cfg-group">
-        <label class="cfg-label">authDomain <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com" style="font-size:13px;padding:10px 12px">
-      </div>
-      <div class="cfg-group">
-        <label class="cfg-label">projectId <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-projectId" type="text" placeholder="your-project-id" style="font-size:13px;padding:10px 12px">
-      </div>
-      <div class="cfg-group">
-        <label class="cfg-label">appId <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123" style="font-size:13px;padding:10px 12px">
-      </div>
-      <div class="cfg-group">
-        <label class="cfg-label">storageBucket（省略可）</label>
-        <input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app" style="font-size:13px;padding:10px 12px">
-      </div>
-      <div class="cfg-group">
-        <label class="cfg-label">messagingSenderId（省略可）</label>
-        <input id="cfg-messagingSenderId" type="text" placeholder="123456789012" style="font-size:13px;padding:10px 12px">
-      </div>
-    </div>
-    <div id="cfg-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;text-align:left"></div>
-    <button class="btn btn-primary btn-full" onclick="applyConfig()" style="font-size:16px;padding:15px">
-      保存して続ける
-    </button>
-    <div class="config-hint">
-      ※ Firestoreデータベースを作成し、セキュリティルールで読み書きを許可してください<br>
-      ※ 設定はこのブラウザのlocalStorageに保存されます（サーバーには送信されません）
-    </div>
-  </div>
-</div>
 
 <!-- ローディング画面 -->
 <div id="overlay-loading" class="overlay hidden">
@@ -397,17 +347,16 @@
 <!-- エラー画面 -->
 <div id="overlay-error" class="overlay hidden">
   <div class="overlay-card">
-    <div class="overlay-icon">😕</div>
+    <div class="overlay-icon-wrap">
+      <i data-lucide="alert-circle" width="60" height="60"></i>
+    </div>
     <div class="overlay-title" id="error-title">エラーが発生しました</div>
     <div class="overlay-sub" id="error-detail"
-      style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
+      style="word-break:break-all;font-size:12px;background:#f8faff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
     <a href="index.html" class="btn btn-primary btn-full"
-      style="font-size:16px;padding:15px;margin-bottom:8px;display:block;text-align:center;text-decoration:none">
-      ← トップに戻る
+      style="font-size:16px;padding:15px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center;text-decoration:none">
+      <i data-lucide="arrow-left" width="18" height="18"></i>トップに戻る
     </a>
-    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()">
-      ⚙️ Firebase設定を変更
-    </button>
   </div>
 </div>
 
@@ -415,15 +364,18 @@
 <div id="app-shell" class="hidden">
 
 <header>
-  <a href="index.html" class="header-back">← 戻る</a>
+  <a href="index.html" class="header-back">
+    <i data-lucide="arrow-left" width="16" height="16"></i>戻る
+  </a>
   <div class="header-center">
     <div id="header-title" class="header-title">読み込み中...</div>
     <div id="header-date" class="header-date"></div>
   </div>
   <div class="header-right">
     <div id="rt-dot" class="rt-dot connecting"></div>
-    <button class="settings-btn" onclick="showConfigOverlay()" title="Firebase設定を変更">⚙️</button>
-    <button class="share-btn" onclick="shareRoom()">🔗 共有</button>
+    <button class="share-btn" onclick="shareRoom()">
+      <i data-lucide="link" width="14" height="14"></i>共有
+    </button>
   </div>
 </header>
 
@@ -440,7 +392,10 @@
   <div class="card">
     <div class="card-title">メンバー一覧 <span id="member-count" class="badge">0</span></div>
     <div id="member-list">
-      <div class="empty-state"><div class="icon">👥</div><p>メンバーを追加してください</p></div>
+      <div class="empty-state">
+        <div class="icon"><i data-lucide="users" width="48" height="48"></i></div>
+        <p>メンバーを追加してください</p>
+      </div>
     </div>
   </div>
 </div>
@@ -465,7 +420,10 @@
   <div class="card">
     <div class="card-title">支出履歴 <span id="expense-count" class="badge">0</span></div>
     <div id="expense-list">
-      <div class="empty-state"><div class="icon">🧾</div><p>支出を記録してください</p></div>
+      <div class="empty-state">
+        <div class="icon"><i data-lucide="receipt" width="48" height="48"></i></div>
+        <p>支出を記録してください</p>
+      </div>
     </div>
   </div>
 </div>
@@ -473,7 +431,7 @@
 <div id="page-settle" class="page">
   <div id="settle-content">
     <div class="empty-state" style="padding-top:60px">
-      <div class="icon">💰</div>
+      <div class="icon"><i data-lucide="wallet" width="48" height="48"></i></div>
       <p>メンバーと支出を追加すると<br>精算方法が表示されます</p>
     </div>
   </div>
@@ -481,13 +439,16 @@
 
 <nav>
   <button class="active" onclick="switchPage('members', this)">
-    <span class="icon">👥</span><span class="label">メンバー</span>
+    <i data-lucide="users" width="22" height="22"></i>
+    <span class="label">メンバー</span>
   </button>
   <button onclick="switchPage('expenses', this)">
-    <span class="icon">🧾</span><span class="label">支出</span>
+    <i data-lucide="receipt" width="22" height="22"></i>
+    <span class="label">支出</span>
   </button>
   <button onclick="switchPage('settle', this)">
-    <span class="icon">💰</span><span class="label">精算</span>
+    <i data-lucide="wallet" width="22" height="22"></i>
+    <span class="label">精算</span>
   </button>
 </nav>
 
@@ -498,7 +459,9 @@
   <div class="modal-sheet">
     <div class="modal-header">
       <span class="modal-title">支出を編集</span>
-      <button class="modal-close" onclick="closeEditModal()">✕</button>
+      <button class="modal-close" onclick="closeEditModal()">
+        <i data-lucide="x" width="22" height="22"></i>
+      </button>
     </div>
     <div class="modal-field">
       <label class="modal-label">支払った人</label>
@@ -512,11 +475,13 @@
       <label class="modal-label">金額（円）</label>
       <input id="edit-amount" type="number" placeholder="金額" min="1" oninput="onEditAmountInput()">
       <div id="split-reset-note" class="split-reset-note">
-        ⚠️ 金額を変更すると傾斜配分がリセットされ、均等割りになります
+        金額を変更すると傾斜配分がリセットされ、均等割りになります
       </div>
     </div>
     <div class="modal-actions">
-      <button class="modal-del-btn" onclick="deleteExpenseFromModal()">🗑 削除</button>
+      <button class="modal-del-btn" onclick="deleteExpenseFromModal()">
+        <i data-lucide="trash-2" width="16" height="16"></i>削除
+      </button>
       <button class="modal-save-btn" onclick="saveExpenseEdit()">保存</button>
     </div>
   </div>
@@ -531,71 +496,8 @@
   let unsubscribeRoom  = null;
   let editingExpenseId = null;
 
-  // ---- Firebase設定 ----
-  function showConfigOverlay() {
-    const saved = loadFirebaseConfig();
-    if (saved) {
-      document.getElementById('cfg-apiKey').value            = saved.apiKey            || '';
-      document.getElementById('cfg-authDomain').value        = saved.authDomain        || '';
-      document.getElementById('cfg-projectId').value         = saved.projectId         || '';
-      document.getElementById('cfg-appId').value             = saved.appId             || '';
-      document.getElementById('cfg-storageBucket').value     = saved.storageBucket     || '';
-      document.getElementById('cfg-messagingSenderId').value = saved.messagingSenderId || '';
-    }
-    document.getElementById('cfg-error').style.display = 'none';
-    showOverlay('config');
-  }
-
-  function applyConfig() {
-    const apiKey            = document.getElementById('cfg-apiKey').value.trim();
-    const authDomain        = document.getElementById('cfg-authDomain').value.trim();
-    const projectId         = document.getElementById('cfg-projectId').value.trim();
-    const appId             = document.getElementById('cfg-appId').value.trim();
-    const storageBucket     = document.getElementById('cfg-storageBucket').value.trim();
-    const messagingSenderId = document.getElementById('cfg-messagingSenderId').value.trim();
-
-    const errEl = document.getElementById('cfg-error');
-    if (!apiKey || !authDomain || !projectId || !appId) {
-      errEl.textContent = '必須項目（apiKey, authDomain, projectId, appId）を入力してください';
-      errEl.style.display = 'block';
-      return;
-    }
-    const cfg = { apiKey, authDomain, projectId, appId };
-    if (storageBucket)     cfg.storageBucket     = storageBucket;
-    if (messagingSenderId) cfg.messagingSenderId = messagingSenderId;
-
-    try {
-      if (firebase.apps.length > 0) {
-        saveFirebaseConfig(cfg);
-        location.reload();
-        return;
-      }
-      db = initFirebaseApp(cfg);
-      saveFirebaseConfig(cfg);
-      errEl.style.display = 'none';
-      const urlRoomId = new URLSearchParams(location.search).get('room');
-      if (urlRoomId) loadRoom(urlRoomId);
-      else location.href = 'index.html';
-    } catch (err) {
-      errEl.textContent = err.message || 'Firebase初期化に失敗しました';
-      errEl.style.display = 'block';
-    }
-  }
-
-  async function resetConfig() {
-    if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
-    roomId = null;
-    state  = { name: '', startDate: '', endDate: '', members: [], expenses: [] };
-    db = null;
-    if (firebase.apps.length > 0) {
-      await Promise.all(firebase.apps.map(a => a.delete()));
-    }
-    showConfigOverlay();
-  }
-
   // ---- オーバーレイ ----
   function showOverlay(name) {
-    document.getElementById('overlay-config').classList.toggle('hidden',  name !== 'config');
     document.getElementById('overlay-loading').classList.toggle('hidden', name !== 'loading');
     document.getElementById('overlay-error').classList.toggle('hidden',   name !== 'error');
     document.getElementById('app-shell').classList.toggle('hidden',       name !== 'app');
@@ -605,6 +507,7 @@
     document.getElementById('error-title').textContent  = title;
     document.getElementById('error-detail').textContent = detail;
     showOverlay('error');
+    renderIcons();
   }
 
   // ---- ルーム読み込み ----
@@ -632,6 +535,7 @@
       subscribeToRoom(id);
       showOverlay('app');
       renderAll();
+      renderIcons();
     } catch (err) {
       console.error('loadRoom error:', err);
       showErrMsg('予期しないエラー', err.message || String(err));
@@ -642,8 +546,13 @@
     document.getElementById('header-title').textContent = state.name || '旅行';
     const dateStr = formatTripDate(state.startDate, state.endDate);
     const dateEl  = document.getElementById('header-date');
-    dateEl.textContent = dateStr ? `📅 ${dateStr}` : '';
-    document.title = state.name ? `${state.name} - 割り勘` : '割り勘';
+    if (dateStr) {
+      dateEl.innerHTML = `<i data-lucide="calendar" width="11" height="11"></i>${esc(dateStr)}`;
+    } else {
+      dateEl.textContent = '';
+    }
+    document.title = state.name ? `${state.name} - 精算` : '精算';
+    renderIcons();
   }
 
   // ---- フィーチャーナビ ----
@@ -651,15 +560,16 @@
     const rid = roomId || new URLSearchParams(location.search).get('room');
     if (!rid) return;
     const tabs = [
-      { id: 'itinerary', icon: '📅', label: '旅程',    href: `itinerary.html?room=${rid}` },
-      { id: 'warikan',   icon: '💰', label: '割り勘',  href: `warikan.html?room=${rid}`   },
-      { id: 'packing',   icon: '🎒', label: '持ち物',  href: `packing.html?room=${rid}`   },
+      { id: 'itinerary', icon: 'calendar', label: '旅程',  href: `itinerary.html?room=${rid}` },
+      { id: 'warikan',   icon: 'wallet',   label: '精算',  href: `warikan.html?room=${rid}`   },
+      { id: 'packing',   icon: 'backpack', label: '持ち物', href: `packing.html?room=${rid}`  },
     ];
     document.getElementById('feature-nav').innerHTML = tabs.map(t =>
       `<a href="${t.href}" class="feature-tab${t.id === 'warikan' ? ' active' : ''}">
-        <span class="ft-icon">${t.icon}</span>${esc(t.label)}
+        <i data-lucide="${t.icon}" width="18" height="18"></i>${esc(t.label)}
       </a>`
     ).join('');
+    renderIcons();
   }
 
   function persistTrip() {
@@ -691,7 +601,7 @@
       state = next;
       updateHeaderInfo();
       renderAll();
-      showToast('🔄 データが更新されました');
+      showToast('データが更新されました');
     }, (err) => {
       console.error('onSnapshot error:', err);
       setRtStatus('connecting');
@@ -772,8 +682,11 @@
     const list = document.getElementById('member-list');
     document.getElementById('member-count').textContent = state.members.length;
     if (state.members.length === 0) {
-      list.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>メンバーを追加してください</p></div>';
-      return;
+      list.innerHTML = `<div class="empty-state">
+        <div class="icon"><i data-lucide="users" width="48" height="48"></i></div>
+        <p>メンバーを追加してください</p>
+      </div>`;
+      renderIcons(); return;
     }
     const totals = {};
     state.members.forEach(m => totals[m] = 0);
@@ -789,6 +702,7 @@
         </div>
         <button class="btn btn-danger" onclick="removeMember('${esc(m)}')">削除</button>
       </div>`).join('');
+    renderIcons();
   }
 
   // ---- 支出フォーム ----
@@ -921,8 +835,11 @@
     const list = document.getElementById('expense-list');
     document.getElementById('expense-count').textContent = state.expenses.length;
     if (state.expenses.length === 0) {
-      list.innerHTML = '<div class="empty-state"><div class="icon">🧾</div><p>支出を記録してください</p></div>';
-      return;
+      list.innerHTML = `<div class="empty-state">
+        <div class="icon"><i data-lucide="receipt" width="48" height="48"></i></div>
+        <p>支出を記録してください</p>
+      </div>`;
+      renderIcons(); return;
     }
     list.innerHTML = [...state.expenses].reverse().map(e => {
       let splitsHtml = '';
@@ -940,9 +857,10 @@
             ${splitsHtml}
           </div>
           <div class="expense-amount">¥${e.amount.toLocaleString()}</div>
-          <div class="expense-chevron">›</div>
+          <div class="expense-chevron"><i data-lucide="chevron-right" width="18" height="18"></i></div>
         </div>`;
     }).join('');
+    renderIcons();
   }
 
   // ---- 支出編集モーダル ----
@@ -1059,12 +977,18 @@
   function renderSettle() {
     const content = document.getElementById('settle-content');
     if (state.members.length < 2) {
-      content.innerHTML = '<div class="empty-state" style="padding-top:60px"><div class="icon">👥</div><p>2人以上のメンバーを追加してください</p></div>';
-      return;
+      content.innerHTML = `<div class="empty-state" style="padding-top:60px">
+        <div class="icon"><i data-lucide="users" width="48" height="48"></i></div>
+        <p>2人以上のメンバーを追加してください</p>
+      </div>`;
+      renderIcons(); return;
     }
     if (state.expenses.length === 0) {
-      content.innerHTML = '<div class="empty-state" style="padding-top:60px"><div class="icon">🧾</div><p>支出を追加してください</p></div>';
-      return;
+      content.innerHTML = `<div class="empty-state" style="padding-top:60px">
+        <div class="icon"><i data-lucide="receipt" width="48" height="48"></i></div>
+        <p>支出を追加してください</p>
+      </div>`;
+      renderIcons(); return;
     }
     const { total, balance, transactions } = calcSettlement();
     let html = `<div class="card">
@@ -1085,13 +1009,16 @@
     });
     html += `</div><div class="card"><div class="card-title">精算方法</div>`;
     if (transactions.length === 0) {
-      html += `<div class="all-settled"><div class="icon">🎉</div><p>全員の支払いは均等です！<br>精算不要です</p></div>`;
+      html += `<div class="all-settled">
+        <div class="icon"><i data-lucide="party-popper" width="56" height="56" style="stroke:#22c55e"></i></div>
+        <p>全員の支払いは均等です！<br>精算不要です</p>
+      </div>`;
     } else {
       transactions.forEach(t => {
         html += `<div class="settlement-row">
           <div class="avatar" style="background:${colorFor(t.from)};width:32px;height:32px;font-size:13px">${initials(t.from)}</div>
           <span class="from">${esc(t.from)}</span>
-          <span class="arrow">→</span>
+          <span class="arrow"><i data-lucide="arrow-right" width="18" height="18"></i></span>
           <div class="avatar" style="background:${colorFor(t.to)};width:32px;height:32px;font-size:13px">${initials(t.to)}</div>
           <span class="to">${esc(t.to)}</span>
           <span class="amount">¥${t.amount.toLocaleString()}</span>
@@ -1100,6 +1027,7 @@
     }
     html += '</div>';
     content.innerHTML = html;
+    renderIcons();
   }
 
   function renderAll() {
@@ -1115,6 +1043,8 @@
 
   // ---- 起動 ----
   window.addEventListener('DOMContentLoaded', () => {
+    renderIcons();
+
     if (typeof firebase === 'undefined') {
       showErrMsg('ライブラリ読み込みエラー',
         'Firebase JS の CDN 読み込みに失敗しました。ネットワーク接続を確認してください。');
@@ -1127,17 +1057,12 @@
       return;
     }
 
-    const savedConfig = loadFirebaseConfig();
-    if (!savedConfig) {
-      showOverlay('config');
-      return;
-    }
     try {
-      db = initFirebaseApp(savedConfig);
+      db = initFirebaseApp();
       loadRoom(urlRoomId);
     } catch (err) {
       console.error('Firebase init error:', err);
-      showConfigOverlay();
+      showErrMsg('Firebase 初期化エラー', err.message || String(err));
     }
   });
 </script>
