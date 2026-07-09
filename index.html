@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta property="og:type" content="website">
+<meta property="og:title" content="たびのあしあと">
+<meta property="og:description" content="友達と旅の計画・精算・持ち物をまとめて管理できる旅行アプリ">
+<meta name="description" content="友達と旅の計画・精算・持ち物をまとめて管理できる旅行アプリ">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon.svg">
 <title>たびのあしあと</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
@@ -420,13 +427,13 @@
   }
 
   function goToTrip(id) {
-    location.href = 'warikan.html?room=' + id;
+    location.href = 'itinerary.html?room=' + id;
   }
 
   async function shareTrip(event, id) {
     event.stopPropagation();
     const base = location.href.replace(/[^/]*(\?.*)?$/, '');
-    const url  = base + 'warikan.html?room=' + id;
+    const url  = base + 'itinerary.html?room=' + id;
     try { await navigator.clipboard.writeText(url); }
     catch {
       const ta = document.createElement('textarea');
@@ -442,7 +449,7 @@
   function joinByCode() {
     const code = document.getElementById('join-code-input').value.trim().toUpperCase();
     if (code.length < 4) { showToast('ルームコードを入力してください'); return; }
-    location.href = 'warikan.html?room=' + code;
+    location.href = 'itinerary.html?room=' + code;
   }
 
   // ---- 旅行作成 ----
@@ -499,7 +506,7 @@
         members:  [], expenses: []
       });
       saveTrip({ id: code, name, theme: selectedTheme, startDate: startDate || '', endDate: endDate || '' });
-      location.href = 'warikan.html?room=' + code;
+      location.href = 'itinerary.html?room=' + code;
     } catch (err) {
       console.error('createTrip error:', err);
       document.getElementById('overlay-loading').classList.add('hidden');
@@ -526,9 +533,9 @@
 
   // ---- 起動 ----
   window.addEventListener('DOMContentLoaded', () => {
-    // ?room=XXX が付いていたら直接 warikan.html へ
+    // ?room=XXX が付いていたら直接 itinerary.html へ
     const roomId = new URLSearchParams(location.search).get('room');
-    if (roomId) { location.href = 'warikan.html?room=' + roomId; return; }
+    if (roomId) { location.href = 'itinerary.html?room=' + roomId; return; }
 
     if (typeof firebase === 'undefined') {
       alert('Firebase JS の読み込みに失敗しました。ネットワーク接続を確認してください。');

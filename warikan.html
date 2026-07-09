@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta property="og:type" content="website">
+<meta property="og:title" content="たびのあしあと - 精算">
+<meta property="og:description" content="友達と旅の精算をかんたん管理">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon.svg">
 <title>精算</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
@@ -145,14 +151,19 @@
 
   /* ---- フォーム ---- */
   .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
-  input, select {
+  input:not([type="checkbox"]), select {
     width: 100%; padding: 12px 14px;
     border: 1.5px solid var(--border); border-radius: 12px;
     font-size: 15px; background: white; color: var(--text);
     outline: none; transition: border-color 0.2s, box-shadow 0.2s;
     -webkit-appearance: none; appearance: none; font-family: inherit;
   }
-  input:focus, select:focus {
+  input[type="checkbox"] {
+    width: 16px; height: 16px; padding: 0; cursor: pointer;
+    accent-color: var(--primary); flex-shrink: 0;
+    -webkit-appearance: checkbox; appearance: checkbox;
+  }
+  input:not([type="checkbox"]):focus, select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(14,165,233,0.12);
   }
@@ -171,6 +182,17 @@
   .btn-full   { width: 100%; }
   .btn-danger { background: #fff0f0; color: var(--danger); font-size: 13px; padding: 6px 12px; border-radius: 8px; }
 
+  /* ---- ルームIDバッジ ---- */
+  .header-room-id {
+    font-size: 11px; opacity: 0.75; margin-top: 2px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+    cursor: pointer; letter-spacing: 2px; font-weight: 700;
+    font-family: 'Courier New', Courier, monospace;
+    background: rgba(255,255,255,0.18); border-radius: 6px;
+    padding: 2px 8px; transition: opacity 0.15s;
+  }
+  .header-room-id:active { opacity: 0.4; }
+
   /* ---- メンバー ---- */
   .member-chip {
     display: flex; align-items: center; justify-content: space-between;
@@ -186,6 +208,13 @@
     margin-right: 10px; flex-shrink: 0;
   }
   .chip-left { display: flex; align-items: center; }
+  .chip-actions { display: flex; align-items: center; gap: 6px; }
+  .btn-edit {
+    background: #f1f5f9; color: var(--subtext); font-size: 13px;
+    padding: 6px 10px; border-radius: 8px; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; transition: all 0.15s; font-family: inherit;
+  }
+  .btn-edit:active { background: #dbeafe; color: var(--primary); }
 
   /* ---- 支出 ---- */
   .expense-item {
@@ -370,6 +399,7 @@
   <div class="header-center">
     <div id="header-title" class="header-title">読み込み中...</div>
     <div id="header-date" class="header-date"></div>
+    <div id="header-room-id" class="header-room-id" onclick="copyRoomId()" title="タップしてコピー"></div>
   </div>
   <div class="header-right">
     <div id="rt-dot" class="rt-dot connecting"></div>
@@ -487,6 +517,25 @@
   </div>
 </div>
 
+<!-- メンバー名編集モーダル -->
+<div id="member-edit-modal" class="modal-overlay hidden" onclick="handleMemberModalBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">メンバー名を変更</span>
+      <button class="modal-close" onclick="closeMemberEditModal()">
+        <i data-lucide="x" width="22" height="22"></i>
+      </button>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">新しい名前</label>
+      <input id="member-edit-input" type="text" placeholder="名前を入力" maxlength="20"
+        onkeydown="if(event.key==='Enter') saveMemberEdit()">
+    </div>
+    <div id="member-edit-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px"></div>
+    <button class="modal-save-btn btn-full" onclick="saveMemberEdit()" style="padding:13px 0">変更する</button>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -495,6 +544,7 @@
   let db               = null;
   let unsubscribeRoom  = null;
   let editingExpenseId = null;
+  let editingMemberName = null;
 
   // ---- オーバーレイ ----
   function showOverlay(name) {
@@ -551,8 +601,25 @@
     } else {
       dateEl.textContent = '';
     }
+    const roomEl = document.getElementById('header-room-id');
+    if (roomEl && roomId) {
+      roomEl.innerHTML = `<i data-lucide="hash" width="10" height="10"></i>${esc(roomId)}`;
+    }
     document.title = state.name ? `${state.name} - 精算` : '精算';
     renderIcons();
+  }
+
+  async function copyRoomId() {
+    if (!roomId) return;
+    try { await navigator.clipboard.writeText(roomId); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = roomId; ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    showToast('ルームコードをコピーしました');
   }
 
   // ---- フィーチャーナビ ----
@@ -700,7 +767,12 @@
             <div class="paid">支払済: ¥${totals[m].toLocaleString()}</div>
           </div>
         </div>
-        <button class="btn btn-danger" onclick="removeMember('${esc(m)}')">削除</button>
+        <div class="chip-actions">
+          <button class="btn-edit" onclick="openMemberEditModal(${JSON.stringify(m)})">
+            <i data-lucide="pencil" width="13" height="13"></i>編集
+          </button>
+          <button class="btn btn-danger" onclick="removeMember(${JSON.stringify(m)})">削除</button>
+        </div>
       </div>`).join('');
     renderIcons();
   }
@@ -1037,9 +1109,61 @@
     if (document.getElementById('page-settle').classList.contains('active')) renderSettle();
   }
 
+  // ---- メンバー名変更 ----
+  function openMemberEditModal(name) {
+    editingMemberName = name;
+    document.getElementById('member-edit-input').value        = name;
+    document.getElementById('member-edit-error').style.display = 'none';
+    document.getElementById('member-edit-modal').classList.remove('hidden');
+    setTimeout(() => {
+      const inp = document.getElementById('member-edit-input');
+      inp.focus(); inp.select();
+    }, 120);
+    renderIcons();
+  }
+
+  function closeMemberEditModal() {
+    document.getElementById('member-edit-modal').classList.add('hidden');
+    editingMemberName = null;
+  }
+
+  function handleMemberModalBackdrop(e) {
+    if (e.target === document.getElementById('member-edit-modal')) closeMemberEditModal();
+  }
+
+  function saveMemberEdit() {
+    const newName = document.getElementById('member-edit-input').value.trim();
+    const errEl   = document.getElementById('member-edit-error');
+    if (!newName) {
+      errEl.textContent = '名前を入力してください'; errEl.style.display = 'block'; return;
+    }
+    if (newName === editingMemberName) { closeMemberEditModal(); return; }
+    if (state.members.includes(newName)) {
+      errEl.textContent = '同じ名前のメンバーがいます'; errEl.style.display = 'block'; return;
+    }
+    const oldName = editingMemberName;
+    const idx = state.members.indexOf(oldName);
+    if (idx === -1) { closeMemberEditModal(); return; }
+
+    state.members[idx] = newName;
+    state.expenses.forEach(e => {
+      if (e.payer === oldName) e.payer = newName;
+      if (e.splits && e.splits[oldName] !== undefined) {
+        e.splits[newName] = e.splits[oldName];
+        delete e.splits[oldName];
+      }
+    });
+    closeMemberEditModal();
+    renderAll();
+    save();
+    showToast(`${oldName} → ${newName} に変更しました`);
+  }
+
   document.getElementById('member-input').addEventListener('keydown',   e => { if (e.key === 'Enter') addMember(); });
   document.getElementById('expense-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeEditModal(); closeMemberEditModal(); }
+  });
 
   // ---- 起動 ----
   window.addEventListener('DOMContentLoaded', () => {
