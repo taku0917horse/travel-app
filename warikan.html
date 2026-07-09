@@ -89,6 +89,23 @@
     font-size: 13px; padding: 9px 16px; margin-top: 10px;
   }
 
+  /* ---- 最近のルーム ---- */
+  .recent-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0 14px; }
+  .recent-title { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; text-align: left; }
+  .recent-item {
+    display: flex; align-items: center;
+    padding: 11px 13px; background: #f8f9ff;
+    border-radius: 12px; margin-bottom: 6px;
+    cursor: pointer; border: 1.5px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+    text-align: left;
+  }
+  .recent-item:active { border-color: var(--primary); background: #edf1ff; }
+  .recent-info { flex: 1; min-width: 0; }
+  .recent-members { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent-date { font-size: 11px; color: var(--subtext); margin-top: 2px; }
+  .recent-arrow { color: var(--primary); font-size: 20px; margin-left: 8px; flex-shrink: 0; }
+
   /* ---- ヘッダー ---- */
   header {
     background: linear-gradient(135deg, #4f7dff 0%, #7c5cfc 100%);
@@ -198,12 +215,18 @@
   .chip-left { display: flex; align-items: center; }
 
   /* ---- 支出 ---- */
-  .expense-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px; }
+  .expense-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .expense-item:active { background: #e8edff; }
   .expense-info { flex: 1; }
   .expense-desc { font-size: 15px; font-weight: 600; }
   .expense-meta { font-size: 12px; color: var(--subtext); margin-top: 2px; }
   .expense-splits { font-size: 11px; color: var(--subtext); margin-top: 3px; line-height: 1.6; }
-  .expense-amount { font-size: 18px; font-weight: 700; color: var(--primary); margin: 0 12px; }
+  .expense-amount { font-size: 18px; font-weight: 700; color: var(--primary); margin: 0 8px 0 12px; }
+  .expense-chevron { color: var(--subtext); font-size: 18px; flex-shrink: 0; }
 
   /* ---- 傾斜配分フォーム ---- */
   .split-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--subtext); cursor: pointer; margin-top: 8px; }
@@ -212,6 +235,7 @@
   .split-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .split-name { font-size: 14px; font-weight: 600; min-width: 56px; flex-shrink: 0; }
   .split-row input { padding: 8px 10px; font-size: 14px; }
+  .split-hint { font-size: 11px; color: var(--subtext); margin-bottom: 6px; }
   .split-total-bar { font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-top: 4px; text-align: center; background: #e8f5e9; color: var(--success); }
   .split-total-bar.ng { background: #ffeaea; color: var(--danger); }
 
@@ -247,11 +271,58 @@
   .all-settled { text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: 16px; }
   .all-settled .icon { font-size: 56px; margin-bottom: 10px; }
   .all-settled p { font-size: 16px; font-weight: 700; color: var(--success); }
+
+  /* ---- 支出編集モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 500;
+    display: flex; align-items: flex-end;
+  }
+  .modal-sheet {
+    background: white;
+    border-radius: 20px 20px 0 0;
+    padding: 22px 20px 36px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 18px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; }
+  .modal-close {
+    background: none; border: none; font-size: 22px;
+    color: var(--subtext); cursor: pointer; padding: 4px; line-height: 1;
+  }
+  .modal-field { margin-bottom: 10px; }
+  .modal-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-del-btn {
+    flex: 1; padding: 13px 0; border: none; border-radius: 10px;
+    background: #fff0f0; color: var(--danger); font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .modal-del-btn:active { transform: scale(0.96); }
+  .modal-save-btn {
+    flex: 2; padding: 13px 0; border: none; border-radius: 10px;
+    background: var(--primary); color: white; font-size: 15px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .modal-save-btn:active { background: var(--primary-dark); transform: scale(0.96); }
+  .split-reset-note {
+    font-size: 11px; color: var(--subtext); background: #fffbe6;
+    border-radius: 8px; padding: 7px 10px; margin-top: 6px;
+    display: none;
+  }
 </style>
 </head>
 <body>
 
-<!-- Firebase設定画面（初回起動時 / 設定変更時） -->
+<!-- Firebase設定画面 -->
 <div id="overlay-config" class="overlay">
   <div class="config-card">
     <div class="overlay-icon">🔥</div>
@@ -308,6 +379,8 @@
     <button class="btn btn-outline btn-full" onclick="showConfigOverlay()" style="margin-top:10px">
       ⚙️ Firebase設定を変更
     </button>
+    <!-- 最近訪れたルーム -->
+    <div id="recent-rooms-section"></div>
   </div>
 </div>
 
@@ -409,30 +482,58 @@
 
 </div><!-- #app-shell -->
 
+<!-- 支出編集モーダル -->
+<div id="expense-edit-modal" class="modal-overlay hidden" onclick="handleModalBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">支出を編集</span>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">支払った人</label>
+      <select id="edit-payer"></select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">内容</label>
+      <input id="edit-desc" type="text" placeholder="内容" maxlength="40">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">金額（円）</label>
+      <input id="edit-amount" type="number" placeholder="金額" min="1" oninput="onEditAmountInput()">
+      <div id="split-reset-note" class="split-reset-note">
+        ⚠️ 金額を変更すると傾斜配分がリセットされ、均等割りになります
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-del-btn" onclick="deleteExpenseFromModal()">🗑 削除</button>
+      <button class="modal-save-btn" onclick="saveExpenseEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
   const CONFIG_KEY = 'warikan_firebase_config';
+  const RECENT_KEY = 'warikan_recent_rooms';
+  const RECENT_MAX = 5;
   const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
 
-  let roomId = null;
-  let state  = { members: [], expenses: [] };
-  let db     = null;
+  let roomId          = null;
+  let state           = { members: [], expenses: [] };
+  let db              = null;
   let unsubscribeRoom = null;
+  let editingExpenseId = null;
 
   // ---- Firebase設定管理 ----
   function loadConfigFromStorage() {
     try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
   }
-
   function saveConfigToStorage(cfg) {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
   }
-
   function initFirebase(cfg) {
-    if (firebase.apps.length === 0) {
-      firebase.initializeApp(cfg);
-    }
+    if (firebase.apps.length === 0) firebase.initializeApp(cfg);
     db = firebase.firestore();
   }
 
@@ -464,14 +565,12 @@
       errEl.style.display = 'block';
       return;
     }
-
     const cfg = { apiKey, authDomain, projectId, appId };
     if (storageBucket)     cfg.storageBucket     = storageBucket;
     if (messagingSenderId) cfg.messagingSenderId = messagingSenderId;
 
     try {
       if (firebase.apps.length > 0) {
-        // Firebase already initialized — save new config and reload to reinitialize cleanly
         saveConfigToStorage(cfg);
         location.reload();
         return;
@@ -500,12 +599,56 @@
     showConfigOverlay();
   }
 
+  // ---- 最近訪れたルーム ----
+  function saveRecentRoom(id, members) {
+    const rooms = loadRecentRooms().filter(r => r.id !== id);
+    rooms.unshift({ id, members: [...members], lastAccess: new Date().toISOString() });
+    localStorage.setItem(RECENT_KEY, JSON.stringify(rooms.slice(0, RECENT_MAX)));
+  }
+
+  function loadRecentRooms() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; }
+  }
+
+  function renderRecentRooms() {
+    const rooms = loadRecentRooms();
+    const section = document.getElementById('recent-rooms-section');
+    if (!rooms.length) { section.innerHTML = ''; return; }
+    const items = rooms.map(r => {
+      const names = r.members.length
+        ? esc(r.members.slice(0, 3).join('・')) + (r.members.length > 3 ? ` 他${r.members.length - 3}名` : '')
+        : 'メンバー未登録';
+      return `<div class="recent-item" onclick="loadRoom('${r.id}')">
+        <div class="recent-info">
+          <div class="recent-members">${names}</div>
+          <div class="recent-date">${formatRelativeDate(r.lastAccess)}</div>
+        </div>
+        <div class="recent-arrow">›</div>
+      </div>`;
+    }).join('');
+    section.innerHTML = `<hr class="recent-divider"><div class="recent-title">最近訪れたルーム</div>${items}`;
+  }
+
+  function formatRelativeDate(isoStr) {
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins  = Math.floor(diff / 60000);
+    if (mins < 1)  return 'たった今';
+    if (mins < 60) return `${mins}分前`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}時間前`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7)  return `${days}日前`;
+    const d = new Date(isoStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
   // ---- オーバーレイ ----
   function showOverlay(name) {
     ['config','welcome','loading','error'].forEach(n =>
       document.getElementById('overlay-' + n).classList.toggle('hidden', n !== name)
     );
     document.getElementById('app-shell').classList.add('hidden');
+    if (name === 'welcome') renderRecentRooms();
   }
 
   function showErrMsg(title, detail) {
@@ -530,6 +673,7 @@
       state  = { members: [], expenses: [] };
       history.pushState(null, '', '?room=' + roomId);
       document.getElementById('header-room').textContent = 'Room: ' + roomId;
+      saveRecentRoom(roomId, []);
       subscribeToRoom(roomId);
       showApp();
       renderAll();
@@ -552,6 +696,7 @@
       roomId = id;
       state  = { members: data.members || [], expenses: data.expenses || [] };
       document.getElementById('header-room').textContent = 'Room: ' + id;
+      saveRecentRoom(roomId, state.members);
       subscribeToRoom(id);
       showApp();
       renderAll();
@@ -592,6 +737,7 @@
         members:  state.members,
         expenses: state.expenses
       });
+      saveRecentRoom(roomId, state.members);
     } catch (err) {
       console.error('save error:', err);
     }
@@ -719,12 +865,16 @@
     const remainder = amount - perPerson * n;
 
     document.getElementById('split-inputs').innerHTML =
+      '<div class="split-hint">0円に設定すると残りのメンバーで自動均等割り</div>' +
       state.members.map((m, i) => {
         const defaultVal = perPerson + (i === 0 ? remainder : 0);
         return `
           <div class="split-row">
             <div class="split-name">${esc(m)}</div>
-            <input type="number" class="split-input" data-member="${esc(m)}" value="${defaultVal}" min="0" oninput="updateSplitTotal()">
+            <input type="number" class="split-input" data-member="${esc(m)}"
+              value="${defaultVal}" min="0"
+              oninput="updateSplitTotal()"
+              onchange="autoRedistribute(this)">
           </div>`;
       }).join('') + '<div id="split-total-bar" class="split-total-bar"></div>';
 
@@ -746,6 +896,20 @@
       const sign = diff > 0 ? '+' : '';
       bar.textContent = `合計 ¥${sum.toLocaleString()}　差額: ${sign}¥${Math.abs(diff).toLocaleString()}`;
     }
+  }
+
+  // 0円設定時に残りのメンバーで均等再配分
+  function autoRedistribute(changedInput) {
+    if ((parseInt(changedInput.value) || 0) !== 0) return;
+    const amount = parseInt(document.getElementById('expense-amount').value) || 0;
+    if (amount === 0) return;
+    const inputs  = [...document.querySelectorAll('.split-input')];
+    const active  = inputs.filter(inp => (parseInt(inp.value) || 0) !== 0);
+    if (active.length === 0) return;
+    const per = Math.floor(amount / active.length);
+    const rem = amount - per * active.length;
+    active.forEach((inp, i) => { inp.value = per + (i === 0 ? rem : 0); });
+    updateSplitTotal();
   }
 
   // ---- 支出 ----
@@ -808,7 +972,7 @@
           '</div>';
       }
       return `
-        <div class="expense-item">
+        <div class="expense-item" onclick="openEditModal(${e.id})">
           <div class="avatar" style="background:${colorFor(e.payer)};width:36px;height:36px;font-size:14px;margin-right:10px;flex-shrink:0">${initials(e.payer)}</div>
           <div class="expense-info">
             <div class="expense-desc">${esc(e.desc)}</div>
@@ -816,9 +980,78 @@
             ${splitsHtml}
           </div>
           <div class="expense-amount">¥${e.amount.toLocaleString()}</div>
-          <button class="btn btn-danger" onclick="removeExpense(${e.id})">削除</button>
+          <div class="expense-chevron">›</div>
         </div>`;
     }).join('');
+  }
+
+  // ---- 支出編集モーダル ----
+  function openEditModal(id) {
+    const expense = state.expenses.find(e => e.id === id);
+    if (!expense) return;
+    editingExpenseId = id;
+
+    const sel = document.getElementById('edit-payer');
+    sel.innerHTML = state.members.map(m =>
+      `<option value="${esc(m)}"${m === expense.payer ? ' selected' : ''}>${esc(m)}</option>`
+    ).join('');
+
+    document.getElementById('edit-desc').value   = expense.desc;
+    document.getElementById('edit-amount').value = expense.amount;
+
+    const note = document.getElementById('split-reset-note');
+    note.style.display = expense.splits ? 'block' : 'none';
+
+    document.getElementById('expense-edit-modal').classList.remove('hidden');
+  }
+
+  function onEditAmountInput() {
+    const expense = state.expenses.find(e => e.id === editingExpenseId);
+    if (!expense || !expense.splits) return;
+    const newAmt = Math.round(parseFloat(document.getElementById('edit-amount').value) || 0);
+    document.getElementById('split-reset-note').style.display =
+      (newAmt !== expense.amount) ? 'block' : 'none';
+  }
+
+  function closeEditModal() {
+    document.getElementById('expense-edit-modal').classList.add('hidden');
+    editingExpenseId = null;
+  }
+
+  function handleModalBackdrop(event) {
+    if (event.target === document.getElementById('expense-edit-modal')) closeEditModal();
+  }
+
+  function saveExpenseEdit() {
+    if (!editingExpenseId) return;
+    const expense = state.expenses.find(e => e.id === editingExpenseId);
+    if (!expense) return;
+
+    const payer  = document.getElementById('edit-payer').value;
+    const desc   = document.getElementById('edit-desc').value.trim();
+    const amount = Math.round(parseFloat(document.getElementById('edit-amount').value) || 0);
+
+    if (!payer)            { showToast('支払った人を選択してください'); return; }
+    if (!desc)             { showToast('内容を入力してください'); return; }
+    if (amount <= 0)       { showToast('正しい金額を入力してください'); return; }
+
+    // 金額が変わった場合は傾斜配分をリセット（金額と整合しなくなるため）
+    expense.payer  = payer;
+    expense.desc   = desc;
+    expense.splits = (expense.splits && amount === expense.amount) ? expense.splits : null;
+    expense.amount = amount;
+
+    closeEditModal();
+    renderExpenses();
+    renderMembers();
+    save();
+    showToast('支出を更新しました');
+  }
+
+  function deleteExpenseFromModal() {
+    if (!editingExpenseId) return;
+    removeExpense(editingExpenseId);
+    closeEditModal();
   }
 
   // ---- 精算計算 ----
@@ -919,6 +1152,7 @@
 
   document.getElementById('member-input').addEventListener('keydown',   e => { if (e.key === 'Enter') addMember(); });
   document.getElementById('expense-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditModal(); });
 
   // ---- 起動 ----
   if (typeof firebase === 'undefined') {
@@ -937,7 +1171,7 @@
         showConfigOverlay();
       }
     }
-    // else: overlay-config is visible by default, nothing to do
+    // else: overlay-config is visible by default
   }
 </script>
 </body>
