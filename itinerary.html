@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>旅程管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #4f7dff; --primary-dark: #3a63e0;
+    --grad-start: #4f7dff; --grad-end: #7c5cfc;
+    --move-color: #ff7043; --stay-color: #7c5cfc;
+    --danger: #ff5252; --bg: #f0f2f8; --card: #ffffff;
+    --text: #1a1a2e; --subtext: #6b7280;
+    --border: #e5e7eb; --shadow: 0 2px 16px rgba(0,0,0,0.07);
+  }
+  body {
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 100px;
+  }
+  .hidden { display: none !important; }
+
+  /* ---- オーバーレイ ---- */
+  .overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 300;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 24px; overflow-y: auto;
+  }
+  .overlay-card {
+    background: white; border-radius: 20px; padding: 36px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 360px;
+  }
+  .overlay-icon  { font-size: 60px; margin-bottom: 18px; }
+  .overlay-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .overlay-sub   { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
+  .spinner {
+    width: 48px; height: 48px; border: 4px solid var(--border);
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- 設定フォーム ---- */
+  .config-card {
+    background: white; border-radius: 20px; padding: 32px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center;
+  }
+  .config-fields { text-align: left; margin: 4px 0 16px; }
+  .cfg-group { margin-bottom: 10px; }
+  .cfg-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase;
+               letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  .config-hint { font-size: 11px; color: var(--subtext); margin-top: 14px; line-height: 1.8; text-align: left; }
+
+  /* ---- ヘッダー ---- */
+  header {
+    background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
+    color: white; padding: 14px 16px 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .header-back {
+    background: rgba(255,255,255,0.18); border: none; color: white;
+    border-radius: 9px; padding: 7px 12px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s; text-decoration: none;
+  }
+  .header-back:active { background: rgba(255,255,255,0.35); }
+  .header-center { flex: 1; text-align: center; min-width: 0; }
+  .header-title  { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-date   { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+  .header-right  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .rt-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: background 0.3s; }
+  .rt-dot.connected  { background: #69f0ae; }
+  .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+  .share-btn {
+    background: rgba(255,255,255,0.22); border: none; color: white;
+    border-radius: 9px; padding: 7px 11px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .share-btn:active { background: rgba(255,255,255,0.38); }
+  .settings-btn { background: none; border: none; color: rgba(255,255,255,0.65); font-size: 15px; cursor: pointer; padding: 2px 3px; }
+
+  /* ---- フィーチャーナビ ---- */
+  .feature-nav {
+    background: white; display: flex; border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 50;
+  }
+  .feature-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px 8px; border-bottom: 2px solid transparent;
+    text-decoration: none; color: var(--subtext); font-size: 10px; font-weight: 600;
+    transition: all 0.2s; gap: 2px;
+  }
+  .feature-tab .ft-icon { font-size: 18px; }
+  .feature-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* ---- ビュー切替バー ---- */
+  .view-toggle-bar {
+    background: white; display: flex; border-bottom: 1px solid var(--border);
+  }
+  .view-btn {
+    flex: 1; padding: 11px 8px; border: none; background: white;
+    color: var(--subtext); font-size: 14px; font-weight: 600; cursor: pointer;
+    border-bottom: 2.5px solid transparent; transition: all 0.2s;
+  }
+  .view-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* ---- フォーム ---- */
+  input:not([type="checkbox"]), select, textarea {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 15px; color: var(--text); background: white;
+    outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  input[type="checkbox"] {
+    width: 16px; height: 16px; padding: 0; border: none; border-radius: 0;
+    -webkit-appearance: checkbox; appearance: checkbox; cursor: pointer;
+  }
+  input:not([type="checkbox"]):focus, select:focus, textarea:focus { border-color: var(--primary); }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
+  textarea { resize: vertical; min-height: 72px; }
+  .btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:active { background: var(--primary-dark); }
+  .btn-full { width: 100%; }
+  .btn-outline { background: transparent; color: var(--subtext); border: 1.5px solid var(--border); font-size: 13px; padding: 9px 16px; }
+
+  /* ---- 日付未定セクション ---- */
+  .undated-section {
+    background: white; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .undated-header {
+    padding: 12px 16px 6px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .undated-header-title {
+    font-size: 13px; font-weight: 700; color: var(--stay-color);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .undated-badge {
+    background: #f3f0ff; color: var(--stay-color);
+    padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700;
+  }
+  .undated-cards { padding: 0 16px 10px; }
+
+  /* ---- タイムライン ---- */
+  .day-section { margin-bottom: 4px; }
+  .day-header {
+    font-size: 13px; font-weight: 700; color: var(--primary);
+    padding: 14px 0 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .day-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .day-empty {
+    text-align: center; padding: 14px; color: var(--subtext); font-size: 13px;
+    background: white; border-radius: 10px; margin-bottom: 8px;
+    border: 1.5px dashed var(--border);
+  }
+  #view-list { max-width: 600px; margin: 0 auto; }
+  .timeline-wrap { padding: 0 8px; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--subtext); }
+  .empty-state .icon { font-size: 56px; margin-bottom: 14px; }
+  .empty-state h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .empty-state p  { font-size: 14px; line-height: 1.7; }
+
+  /* ---- タイムライン ---- */
+  .tl-item {
+    display: flex; align-items: flex-start; padding: 0 16px 0 8px;
+  }
+  .tl-time-col {
+    width: 46px; flex-shrink: 0; padding-right: 6px; padding-top: 18px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  }
+  .tl-time-val { font-size: 11px; font-weight: 700; color: var(--primary); line-height: 1.3; }
+  .ev-move  .tl-time-val { color: var(--move-color); }
+  .ev-stay  .tl-time-val, .ev-checkout .tl-time-val { color: var(--stay-color); }
+  .tl-time-sep { font-size: 9px; color: var(--subtext); }
+
+  .tl-stem {
+    width: 22px; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; padding-top: 16px;
+  }
+  .tl-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2.5px solid var(--primary); background: white; flex-shrink: 0; z-index: 1;
+  }
+  .ev-move .tl-dot     { border-color: var(--move-color); background: var(--move-color); }
+  .ev-stay .tl-dot     { border-color: var(--stay-color); }
+  .ev-checkout .tl-dot { border-color: var(--stay-color); background: var(--stay-color); opacity: 0.7; }
+  .ev-staying .tl-dot  { width: 8px; height: 8px; border-color: var(--stay-color); opacity: 0.45; }
+
+  .tl-line { width: 2px; flex: 1; min-height: 16px; margin-top: 3px; }
+  .tl-line-solid  { background: var(--border); }
+  .tl-line-dashed {
+    background: repeating-linear-gradient(
+      to bottom, var(--move-color) 0, var(--move-color) 4px, transparent 4px, transparent 8px
+    );
+  }
+  .tl-line-stay { background: rgba(124,92,252,0.22); }
+
+  .tl-card {
+    flex: 1; background: white; border-radius: 16px;
+    padding: 13px 14px; margin: 7px 0 1px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.07);
+    cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .tl-card:active { transform: scale(0.975); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .ev-spot .tl-card     { border-left-color: var(--primary); }
+  .ev-move .tl-card     { border-left-color: var(--move-color); }
+  .ev-stay .tl-card,
+  .ev-checkout .tl-card { border-left-color: var(--stay-color); }
+  .ev-staying .tl-card  { border-left-color: var(--stay-color); opacity: 0.65; background: #f8f6ff; box-shadow: none; }
+
+  .tl-badge {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 3px 9px; border-radius: 8px; margin-bottom: 7px; letter-spacing: 0.3px;
+  }
+  .spot-badge     { background: #eef2ff; color: var(--primary); }
+  .move-badge     { background: #fff3ef; color: var(--move-color); }
+  .stay-badge,
+  .checkout-badge { background: #f3f0ff; color: var(--stay-color); }
+
+  .tl-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 3px; word-break: break-all; }
+  .tl-title a { color: var(--primary); text-decoration: none; }
+  .tl-title a:hover { text-decoration: underline; }
+  .tl-memo { font-size: 13px; color: var(--subtext); line-height: 1.6; margin-top: 3px; }
+  .move-route { font-size: 14px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .move-arrow { color: var(--move-color); font-weight: 700; }
+  .staying-row { display: flex; align-items: center; gap: 6px; }
+  .staying-text { font-size: 13px; color: var(--stay-color); font-weight: 600; }
+
+  /* ---- マップビュー ---- */
+  #view-map { display: flex; flex-direction: column; overflow: hidden; }
+  .map-controls {
+    background: white; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0; flex-shrink: 0;
+  }
+  .map-day-filter {
+    flex: 1; display: flex; gap: 6px; overflow-x: auto; padding: 8px 12px;
+    scrollbar-width: none;
+  }
+  .map-day-filter::-webkit-scrollbar { display: none; }
+  .day-filter-btn {
+    flex-shrink: 0; padding: 7px 12px; border: 1.5px solid var(--border);
+    border-radius: 8px; background: white; color: var(--subtext);
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .day-filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+  .map-fullscreen-btn {
+    padding: 7px 10px; border: 1.5px solid var(--border);
+    border-radius: 8px; background: white; color: var(--subtext);
+    font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .map-fullscreen-btn:active { background: var(--bg); }
+  #map-container { flex: 1; min-height: 0; }
+  .map-marker { background: transparent !important; border: none !important; }
+  .marker-dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.32);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: white;
+  }
+  .map-status {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: rgba(26,26,46,0.88); color: white;
+    padding: 8px 18px; border-radius: 22px; font-size: 13px; font-weight: 600;
+    z-index: 100; pointer-events: none; white-space: nowrap;
+  }
+
+  /* ---- FAB ---- */
+  .fab {
+    position: fixed; bottom: 24px; right: 16px;
+    width: 56px; height: 56px; background: var(--primary); color: white;
+    border: none; border-radius: 50%; font-size: 28px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(79,125,255,0.45);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; z-index: 200;
+  }
+  .fab:active { transform: scale(0.92); }
+
+  /* ---- モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 500; display: flex; align-items: flex-end;
+  }
+  .modal-sheet {
+    background: white; border-radius: 20px 20px 0 0; padding: 22px 20px 40px;
+    width: 100%; max-height: 92vh; overflow-y: auto; animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .modal-title  { font-size: 18px; font-weight: 700; }
+  .modal-close  { background: none; border: none; font-size: 22px; color: var(--subtext); cursor: pointer; padding: 4px; }
+  .modal-field  { margin-bottom: 12px; }
+  .modal-label  { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase;
+                  letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
+  .modal-date-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;
+  }
+  .modal-date-header .modal-label { margin: 0; }
+  .undated-check-label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 13px; color: var(--subtext); cursor: pointer; user-select: none;
+  }
+  .undated-check-label input[type="checkbox"] {
+    width: 16px; height: 16px; padding: 0; border-radius: 4px; cursor: pointer;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-del-btn {
+    flex: 1; padding: 13px 0; border: none; border-radius: 10px;
+    background: #fff0f0; color: var(--danger); font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .modal-del-btn:active { transform: scale(0.96); }
+  .modal-save-btn {
+    flex: 2; padding: 13px 0; border: none; border-radius: 10px;
+    background: var(--primary); color: white; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .modal-save-btn:active { background: var(--primary-dark); transform: scale(0.96); }
+
+  /* タイプ切替 */
+  .type-toggle { display: flex; gap: 5px; margin-bottom: 14px; }
+  .type-btn {
+    flex: 1; padding: 9px 2px; border: 1.5px solid var(--border);
+    border-radius: 10px; background: white; color: var(--subtext);
+    font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .type-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+  /* ---- トースト ---- */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1a1a2e; color: white; padding: 10px 22px; border-radius: 24px;
+    font-size: 13px; font-weight: 600; opacity: 0; transition: all 0.3s;
+    pointer-events: none; white-space: nowrap; z-index: 600;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Firebase設定 -->
+<div id="overlay-config" class="overlay">
+  <div class="config-card">
+    <div class="overlay-icon">🔥</div>
+    <div class="overlay-title">Firebase 設定</div>
+    <div class="overlay-sub" style="margin-bottom:12px">Firebase コンソール →「プロジェクト設定」→「ウェブアプリ」の<br>firebaseConfig を入力してください</div>
+    <div class="config-fields">
+      <div class="cfg-group"><label class="cfg-label">apiKey *</label><input id="cfg-apiKey" type="text" placeholder="AIzaSy..." style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">authDomain *</label><input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">projectId *</label><input id="cfg-projectId" type="text" placeholder="your-project-id" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">appId *</label><input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">storageBucket（省略可）</label><input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">messagingSenderId（省略可）</label><input id="cfg-messagingSenderId" type="text" placeholder="123456789012" style="font-size:13px;padding:10px 12px"></div>
+    </div>
+    <div id="cfg-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;text-align:left"></div>
+    <button class="btn btn-primary btn-full" onclick="applyConfig()" style="font-size:16px;padding:15px">保存して続ける</button>
+    <div class="config-hint">※ 設定はこのブラウザのlocalStorageに保存されます</div>
+  </div>
+</div>
+
+<div id="overlay-loading" class="overlay hidden">
+  <div class="spinner"></div>
+  <div style="color:var(--subtext);font-size:14px;font-weight:600">読み込み中...</div>
+</div>
+
+<div id="overlay-error" class="overlay hidden">
+  <div class="overlay-card">
+    <div class="overlay-icon">😕</div>
+    <div class="overlay-title" id="error-title">エラー</div>
+    <div class="overlay-sub" id="error-detail" style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
+    <a href="index.html" class="btn btn-primary btn-full" style="font-size:16px;padding:15px;margin-bottom:8px;display:block;text-align:center;text-decoration:none">← トップに戻る</a>
+    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()">⚙️ Firebase設定を変更</button>
+  </div>
+</div>
+
+<!-- メインアプリ -->
+<div id="app-shell" class="hidden">
+<header>
+  <a href="index.html" class="header-back">← 戻る</a>
+  <div class="header-center">
+    <div id="header-title" class="header-title">読み込み中...</div>
+    <div id="header-date" class="header-date"></div>
+  </div>
+  <div class="header-right">
+    <div id="rt-dot" class="rt-dot connecting"></div>
+    <button class="settings-btn" onclick="showConfigOverlay()">⚙️</button>
+    <button class="share-btn" onclick="shareRoom()">🔗</button>
+  </div>
+</header>
+
+<nav class="feature-nav" id="feature-nav"></nav>
+
+<div class="view-toggle-bar" id="view-toggle-bar">
+  <button class="view-btn active" id="btn-list" onclick="switchView('list')">📋 リスト</button>
+  <button class="view-btn"        id="btn-map"  onclick="switchView('map')">🗺 マップ</button>
+</div>
+
+<div id="view-list"></div>
+
+<!-- マップビュー：コントロールバー ＋ Leaflet コンテナ -->
+<div id="view-map" class="hidden">
+  <div class="map-controls" id="map-controls">
+    <div class="map-day-filter" id="map-day-filter"></div>
+    <button class="map-fullscreen-btn" id="map-fs-btn" onclick="toggleMapFullscreen()" style="margin-right:8px">⛶ 全画面</button>
+  </div>
+  <div id="map-container"></div>
+</div>
+</div><!-- #app-shell -->
+
+<div id="map-status" class="map-status hidden"></div>
+<button class="fab hidden" id="fab" onclick="openAddModal()">＋</button>
+
+<!-- 予定追加/編集モーダル -->
+<div id="event-modal" class="modal-overlay hidden" onclick="handleModalBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span id="modal-title-text" class="modal-title">予定を追加</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <!-- 日付（全タイプ共通） -->
+    <div class="modal-field">
+      <div class="modal-date-header">
+        <label class="modal-label">
+          <span id="date-field-label">日付</span>
+          <span id="date-required-mark" style="color:var(--danger)"> *</span>
+        </label>
+        <label id="undated-label" class="undated-check-label" style="display:none">
+          <input type="checkbox" id="ev-undated" onchange="toggleUndated()">
+          <span>日付未定</span>
+        </label>
+      </div>
+      <div id="ev-date-wrap"></div>
+    </div>
+
+    <!-- タイプ切替 -->
+    <div class="type-toggle">
+      <button class="type-btn active" id="type-btn-spot" onclick="setEventType('spot')">📍 観光</button>
+      <button class="type-btn"        id="type-btn-move" onclick="setEventType('move')">🚃 移動</button>
+      <button class="type-btn"        id="type-btn-stay" onclick="setEventType('stay')">🏨 宿泊</button>
+    </div>
+
+    <!-- 観光フィールド -->
+    <div id="spot-fields">
+      <div class="modal-field" id="spot-time-field">
+        <label class="modal-label">開始時刻（省略可）</label>
+        <input id="ev-time" type="time">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">場所名</label>
+        <input id="ev-place" type="text" placeholder="例：東京タワー、〇〇レストラン" maxlength="60">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">メモ（省略可）</label>
+        <textarea id="ev-memo" placeholder="メモ、注意事項など" maxlength="200"></textarea>
+      </div>
+    </div>
+
+    <!-- 移動フィールド -->
+    <div id="move-fields" class="hidden">
+      <div class="modal-field">
+        <label class="modal-label">交通手段</label>
+        <select id="ev-transport">
+          <option value="train">🚃 電車</option>
+          <option value="bus">🚌 バス</option>
+          <option value="plane">✈️ 飛行機</option>
+          <option value="car">🚗 車</option>
+          <option value="ferry">🚢 フェリー</option>
+          <option value="walk">🚶 徒歩</option>
+          <option value="other">🔀 その他</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">出発時刻（省略可）</label>
+        <input id="ev-depart-time" type="time">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">出発地</label>
+        <input id="ev-from" type="text" placeholder="例：東京駅" maxlength="60">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">到着時刻（省略可）</label>
+        <input id="ev-arrive-time" type="time">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">到着地</label>
+        <input id="ev-to" type="text" placeholder="例：新大阪駅" maxlength="60">
+      </div>
+    </div>
+
+    <!-- 宿泊フィールド -->
+    <div id="stay-fields" class="hidden">
+      <div class="modal-field">
+        <label class="modal-label">宿泊先名 <span style="color:var(--danger)">*</span></label>
+        <input id="ev-hotel-name" type="text" placeholder="例：〇〇ホテル、民泊" maxlength="60">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">住所（地図表示に使用）</label>
+        <input id="ev-address" type="text" placeholder="例：東京都千代田区丸の内1-1" maxlength="120">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">チェックイン時刻（省略可）</label>
+        <input id="ev-checkin-time" type="time">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">チェックアウト日</label>
+        <div id="ev-checkout-date-wrap"></div>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">チェックアウト時刻（省略可）</label>
+        <input id="ev-checkout-time" type="time">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">メモ（省略可）</label>
+        <textarea id="ev-stay-memo" placeholder="メモ、注意事項など" maxlength="200"></textarea>
+      </div>
+    </div>
+
+    <div id="modal-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px"></div>
+    <div class="modal-actions">
+      <button id="modal-delete-btn" class="modal-del-btn hidden" onclick="deleteEventFromModal()">🗑 削除</button>
+      <button class="modal-save-btn" onclick="saveEvent()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  /* ===================== 状態変数 ===================== */
+  let roomId           = null;
+  let state            = { name: '', startDate: '', endDate: '', itinerary: [] };
+  let db               = null;
+  let unsubscribeRoom  = null;
+  let editingId        = null;
+  let currentEventType = 'spot';
+  let currentView      = 'list';
+  let mapScope         = 'all';   // 'all' | YYYY-MM-DD
+  let mapFullscreen    = false;
+
+  let leafletMap   = null;
+  let mapMarkers   = [];
+  let mapUpdateGen = 0;
+
+  const geocodeCache = {};
+  const geocodeQueue = [];
+  let geocodeBusy    = false;
+
+  const TRANSPORT_ICONS = {
+    train:'🚃', bus:'🚌', plane:'✈️', car:'🚗', ferry:'🚢', walk:'🚶', other:'🔀'
+  };
+
+  /* ===================== Firebase 設定 ===================== */
+  function showConfigOverlay() {
+    const saved = loadFirebaseConfig();
+    if (saved) {
+      ['apiKey','authDomain','projectId','appId','storageBucket','messagingSenderId'].forEach(k => {
+        document.getElementById('cfg-' + k).value = saved[k] || '';
+      });
+    }
+    document.getElementById('cfg-error').style.display = 'none';
+    showOverlay('config');
+  }
+
+  function applyConfig() {
+    const get = id => document.getElementById(id).value.trim();
+    const apiKey = get('cfg-apiKey'), authDomain = get('cfg-authDomain'),
+          projectId = get('cfg-projectId'), appId = get('cfg-appId');
+    const errEl = document.getElementById('cfg-error');
+    if (!apiKey || !authDomain || !projectId || !appId) {
+      errEl.textContent = '必須項目を入力してください'; errEl.style.display = 'block'; return;
+    }
+    const cfg = { apiKey, authDomain, projectId, appId };
+    const sb = get('cfg-storageBucket'), ms = get('cfg-messagingSenderId');
+    if (sb) cfg.storageBucket = sb;
+    if (ms) cfg.messagingSenderId = ms;
+    try {
+      if (firebase.apps.length > 0) { saveFirebaseConfig(cfg); location.reload(); return; }
+      db = initFirebaseApp(cfg);
+      saveFirebaseConfig(cfg);
+      errEl.style.display = 'none';
+      const rid = new URLSearchParams(location.search).get('room');
+      if (rid) loadRoom(rid); else location.href = 'index.html';
+    } catch (err) {
+      errEl.textContent = err.message || 'Firebase初期化に失敗しました'; errEl.style.display = 'block';
+    }
+  }
+
+  /* ===================== オーバーレイ ===================== */
+  function showOverlay(name) {
+    document.getElementById('overlay-config').classList.toggle('hidden',  name !== 'config');
+    document.getElementById('overlay-loading').classList.toggle('hidden', name !== 'loading');
+    document.getElementById('overlay-error').classList.toggle('hidden',   name !== 'error');
+    document.getElementById('app-shell').classList.toggle('hidden',       name !== 'app');
+    document.getElementById('fab').classList.toggle('hidden',             name !== 'app');
+  }
+  function showErrMsg(title, detail) {
+    document.getElementById('error-title').textContent  = title;
+    document.getElementById('error-detail').textContent = detail;
+    showOverlay('error');
+  }
+
+  /* ===================== フィーチャーナビ ===================== */
+  function buildFeatureNav() {
+    const rid = roomId || new URLSearchParams(location.search).get('room');
+    if (!rid) return;
+    const tabs = [
+      { id:'itinerary', icon:'📅', label:'旅程',   href:`itinerary.html?room=${rid}` },
+      { id:'warikan',   icon:'💰', label:'割り勘', href:`warikan.html?room=${rid}`   },
+      { id:'packing',   icon:'🎒', label:'持ち物', href:`packing.html?room=${rid}`   },
+    ];
+    document.getElementById('feature-nav').innerHTML = tabs.map(t =>
+      `<a href="${t.href}" class="feature-tab${t.id==='itinerary'?' active':''}">
+        <span class="ft-icon">${t.icon}</span>${esc(t.label)}</a>`
+    ).join('');
+  }
+
+  /* ===================== 部屋 ===================== */
+  async function loadRoom(id) {
+    showOverlay('loading');
+    try {
+      const snap = await db.collection('rooms').doc(id).get();
+      if (!snap.exists) { showErrMsg('旅行が見つかりません', 'このURLは無効か、旅行が存在しません。'); return; }
+      const data = snap.data();
+      roomId = id;
+      state  = {
+        name:      data.name      || '旅行',
+        startDate: data.startDate || '',
+        endDate:   data.endDate   || '',
+        itinerary: data.itinerary || []
+      };
+      applyTheme(data.theme || 'ocean');
+      updateHeader();
+      buildFeatureNav();
+      subscribeToRoom(id);
+      showOverlay('app');
+      renderItinerary();
+    } catch (err) { showErrMsg('読み込みエラー', err.message || String(err)); }
+  }
+
+  function updateHeader() {
+    document.getElementById('header-title').textContent = state.name;
+    const dateStr = formatTripDate(state.startDate, state.endDate);
+    document.getElementById('header-date').textContent = dateStr ? `📅 ${dateStr}` : '';
+    document.title = `${state.name} - 旅程`;
+  }
+
+  function subscribeToRoom(id) {
+    if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+    setRtStatus('connecting');
+    let first = true;
+    unsubscribeRoom = db.collection('rooms').doc(id).onSnapshot(snap => {
+      setRtStatus('connected');
+      if (!snap.exists || first) { first = false; return; }
+      const next = snap.data().itinerary || [];
+      if (JSON.stringify(next) === JSON.stringify(state.itinerary)) return;
+      state.itinerary = next;
+      renderItinerary();
+      if (currentView === 'map' && leafletMap) updateMapMarkers();
+      showToast('🔄 データが更新されました');
+    }, () => setRtStatus('connecting'));
+  }
+
+  function setRtStatus(s) { document.getElementById('rt-dot').className = 'rt-dot ' + s; }
+
+  async function save() {
+    if (!roomId || !db) return;
+    try { await db.collection('rooms').doc(roomId).update({ itinerary: state.itinerary }); }
+    catch (err) { console.error('save:', err); }
+  }
+
+  async function shareRoom() {
+    const url = `${location.origin}${location.pathname}?room=${roomId}`;
+    try { await navigator.clipboard.writeText(url); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    showToast('共有URLをコピーしました');
+  }
+
+  /* ===================== 日付ユーティリティ ===================== */
+  function toLocalDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function generateDays() {
+    if (!state.startDate) return [];
+    const [sy,sm,sd] = state.startDate.split('-').map(Number);
+    const [ey,em,ed] = (state.endDate||state.startDate).split('-').map(Number);
+    const start = new Date(sy, sm-1, sd), end = new Date(ey, em-1, ed);
+    const cur = new Date(start); const days = [];
+    while (cur <= end && days.length <= 31) {
+      days.push(toLocalDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  }
+
+  function formatDayHeader(dateStr) {
+    const [y,m,d] = dateStr.split('-').map(Number);
+    const dt  = new Date(y, m-1, d);
+    const dow = ['日','月','火','水','木','金','土'][dt.getDay()];
+    return `${m}月${d}日（${dow}）`;
+  }
+
+  function mapsUrl(q) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  }
+
+  /* イベントのソートキー（モード対応） */
+  function eventSortKey(ev) {
+    const type = ev.type || 'spot';
+    const mode = ev._mode;
+    if (type === 'stay') {
+      if (mode === 'staying')  return '00:00'; // 宿泊中は常に先頭
+      if (mode === 'checkout') return ev.checkOutTime  || '99:99';
+      return ev.checkInTime || '99:99';
+    }
+    if (type === 'move') return ev.departureTime || ev.arrivalTime || '99:99';
+    return ev.time || '99:99';
+  }
+
+  /* 当日の日付を判定（旅行期間内ならその日、範囲外は端の日） */
+  function getCurrentDay() {
+    const today = toLocalDateStr(new Date());
+    const days  = generateDays();
+    if (!days.length) return today;
+    if (days.includes(today)) return today;
+    return today < days[0] ? days[0] : days[days.length - 1];
+  }
+
+  /* ===================== ビュー切替 ===================== */
+  function switchView(view) {
+    currentView = view;
+    const listEl = document.getElementById('view-list');
+    const mapEl  = document.getElementById('view-map');
+    listEl.classList.toggle('hidden', view !== 'list');
+    mapEl.classList.toggle('hidden',  view !== 'map');
+    document.getElementById('btn-list').classList.toggle('active', view === 'list');
+    document.getElementById('btn-map').classList.toggle('active',  view === 'map');
+
+    if (view === 'map') {
+      document.body.style.overflow = 'hidden';
+      // FullscreenのときはCSS固定済みなのでリサイズ不要
+      if (!mapFullscreen) resizeMapHeight();
+      setTimeout(() => { initMap(); buildDayFilterBar(); updateMapMarkers(); }, 80);
+    } else {
+      document.body.style.overflow = '';
+      document.getElementById('map-status').classList.add('hidden');
+      if (mapFullscreen) exitMapFullscreen();
+    }
+  }
+
+  function resizeMapHeight() {
+    const usedH = document.querySelector('header').offsetHeight
+      + document.getElementById('feature-nav').offsetHeight
+      + document.getElementById('view-toggle-bar').offsetHeight;
+    document.getElementById('view-map').style.height = (window.innerHeight - usedH) + 'px';
+  }
+
+  /* ---- マップ全画面 ---- */
+  function toggleMapFullscreen() {
+    if (mapFullscreen) exitMapFullscreen(); else enterMapFullscreen();
+  }
+
+  function enterMapFullscreen() {
+    mapFullscreen = true;
+    const mapEl = document.getElementById('view-map');
+    mapEl.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:150;display:flex;flex-direction:column;';
+    document.getElementById('map-fs-btn').textContent = '⛶ 縮小';
+    document.body.style.overflow = 'hidden';
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 60);
+  }
+
+  function exitMapFullscreen() {
+    mapFullscreen = false;
+    const mapEl = document.getElementById('view-map');
+    mapEl.style.cssText = '';
+    if (currentView === 'map') {
+      mapEl.classList.remove('hidden');
+      resizeMapHeight();
+    }
+    document.getElementById('map-fs-btn').textContent = '⛶ 全画面';
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 60);
+  }
+
+  /* ---- マップ日付フィルター ---- */
+  function buildDayFilterBar() {
+    const days = generateDays();
+    const bar  = document.getElementById('map-day-filter');
+    if (!bar) return;
+    const btns = [{ label: '🗓 全日程', value: 'all' }].concat(
+      days.map(d => {
+        const [,m,day] = d.split('-').map(Number);
+        return { label: `${m}/${day}`, value: d };
+      })
+    );
+    bar.innerHTML = btns.map(b =>
+      `<button class="day-filter-btn${b.value === mapScope ? ' active' : ''}"
+        onclick="setMapScope('${b.value}')">${b.label}</button>`
+    ).join('');
+  }
+
+  function setMapScope(scope) {
+    mapScope = scope;
+    buildDayFilterBar();
+    if (leafletMap) updateMapMarkers();
+  }
+
+  /* ===================== レンダリング ===================== */
+  function renderItinerary() {
+    const content = document.getElementById('view-list');
+
+    if (!state.itinerary.length) {
+      content.innerHTML = `<div class="empty-state">
+        <div class="icon">📅</div><h3>旅程がありません</h3>
+        <p>「＋」ボタンから予定を追加しましょう</p></div>`;
+      return;
+    }
+
+    const undatedEvents = state.itinerary.filter(ev => ev.undated);
+    const datedEvents   = state.itinerary.filter(ev => !ev.undated);
+    const days          = generateDays();
+
+    // byDate マップ構築（宿泊を分割して配置）
+    const byDate = {};
+    const add = (dateStr, item) => {
+      if (!dateStr) return;
+      if (!byDate[dateStr]) byDate[dateStr] = [];
+      byDate[dateStr].push(item);
+    };
+    days.forEach(d => add(d, null)); // 旅程日を確保
+
+    datedEvents.forEach(ev => {
+      if ((ev.type || 'spot') === 'stay') {
+        add(ev.date, { ...ev, _mode: 'checkin' });
+        if (ev.checkOutDate && ev.checkOutDate !== ev.date) {
+          add(ev.checkOutDate, { ...ev, _mode: 'checkout' });
+        }
+        // 中間日に「宿泊中」インジケータ
+        if (ev.date && ev.checkOutDate && ev.checkOutDate > ev.date) {
+          const [sy,sm,sd] = ev.date.split('-').map(Number);
+          const [ey,em,ed] = ev.checkOutDate.split('-').map(Number);
+          const start = new Date(sy, sm-1, sd+1);
+          const end   = new Date(ey, em-1, ed-1);
+          let cur = new Date(start);
+          while (cur <= end) { add(toLocalDateStr(cur), { ...ev, _mode: 'staying' }); cur.setDate(cur.getDate()+1); }
+        }
+      } else {
+        add(ev.date, ev);
+      }
+    });
+
+    // null プレースホルダを除去
+    Object.keys(byDate).forEach(d => { byDate[d] = byDate[d].filter(Boolean); });
+
+    const allDates = [...new Set([...days, ...Object.keys(byDate)])].sort();
+    allDates.forEach(d => { (byDate[d]||[]).sort((a,b) => eventSortKey(a).localeCompare(eventSortKey(b))); });
+
+    let html = '';
+    if (undatedEvents.length) {
+      html += `<div class="undated-section">
+        <div class="undated-header">
+          <div class="undated-header-title">📌 日付未定</div>
+          <span class="undated-badge">${undatedEvents.length}件</span>
+        </div>
+        <div class="undated-cards">${undatedEvents.map(renderSpotEvent).join('')}</div>
+      </div>`;
+    }
+
+    html += `<div class="timeline-wrap">` + allDates.map(d => {
+      const evs = byDate[d] || [];
+      return `<div class="day-section">
+        <div class="day-header">${esc(formatDayHeader(d))}</div>
+        ${evs.length ? evs.map(renderEvent).join('') : '<div class="day-empty">予定なし</div>'}
+      </div>`;
+    }).join('') + `</div>`;
+
+    content.innerHTML = html;
+  }
+
+  function renderEvent(ev) {
+    const type = ev.type || 'spot';
+    const mode = ev._mode;
+    if (type === 'stay') {
+      if (mode === 'checkout') return renderCheckoutCard(ev);
+      if (mode === 'staying')  return renderStayIndicator(ev);
+      return renderCheckinCard(ev);
+    }
+    if (type === 'move') return renderMoveEvent(ev);
+    return renderSpotEvent(ev);
+  }
+
+  function renderSpotEvent(ev) {
+    const timeCol = ev.time
+      ? `<div class="tl-time-col"><span class="tl-time-val">${esc(ev.time)}</span></div>`
+      : `<div class="tl-time-col"></div>`;
+    const place = ev.place
+      ? `<div class="tl-title"><a href="${esc(mapsUrl(ev.place))}" target="_blank" rel="noopener"
+            onclick="event.stopPropagation()">${esc(ev.place)} 🗺</a></div>`
+      : '';
+    const memo  = ev.memo ? `<div class="tl-memo">${esc(ev.memo).replace(/\n/g,'<br>')}</div>` : '';
+    const empty = !place && !memo ? `<div class="tl-memo" style="color:var(--border)">（内容なし）</div>` : '';
+    return `<div class="tl-item ev-spot">
+      ${timeCol}
+      <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-solid"></div></div>
+      <div class="tl-card" onclick="openEditModal(${ev.id})">
+        <div class="tl-badge spot-badge">📍 観光</div>
+        ${place}${memo}${empty}
+      </div></div>`;
+  }
+
+  function renderMoveEvent(ev) {
+    const icon = TRANSPORT_ICONS[ev.transport] || '🚃';
+    const dept = ev.departureTime || '', arrv = ev.arrivalTime || '';
+    const timeCol = (dept || arrv)
+      ? `<div class="tl-time-col">
+          ${dept ? `<span class="tl-time-val">${esc(dept)}</span>` : ''}
+          ${dept && arrv ? `<span class="tl-time-sep">↓</span>` : ''}
+          ${arrv ? `<span class="tl-time-val">${esc(arrv)}</span>` : ''}
+        </div>`
+      : `<div class="tl-time-col"></div>`;
+    const from  = ev.from ? `<span>${esc(ev.from)}</span>` : '';
+    const to    = ev.to   ? `<span>${esc(ev.to)}</span>`   : '';
+    const route = from || to
+      ? `<div class="move-route">${from}${from&&to?'<span class="move-arrow">→</span>':''}${to}</div>`
+      : `<div class="tl-memo" style="color:var(--subtext)">移動</div>`;
+    return `<div class="tl-item ev-move">
+      ${timeCol}
+      <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-dashed"></div></div>
+      <div class="tl-card" onclick="openEditModal(${ev.id})">
+        <div class="tl-badge move-badge">${icon} 移動</div>
+        ${route}
+      </div></div>`;
+  }
+
+  function renderCheckinCard(ev) {
+    const timeCol = ev.checkInTime
+      ? `<div class="tl-time-col"><span class="tl-time-val">${esc(ev.checkInTime)}</span></div>`
+      : `<div class="tl-time-col"></div>`;
+    const addr = ev.address ? `<div class="tl-memo">${esc(ev.address)}</div>` : '';
+    const memo = ev.memo    ? `<div class="tl-memo">${esc(ev.memo).replace(/\n/g,'<br>')}</div>` : '';
+    return `<div class="tl-item ev-stay">
+      ${timeCol}
+      <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-stay"></div></div>
+      <div class="tl-card" onclick="openEditModal(${ev.id})">
+        <div class="tl-badge stay-badge">🏨 チェックイン</div>
+        <div class="tl-title">${esc(ev.hotelName||'宿泊')}</div>
+        ${addr}${memo}
+      </div></div>`;
+  }
+
+  function renderCheckoutCard(ev) {
+    const timeCol = ev.checkOutTime
+      ? `<div class="tl-time-col"><span class="tl-time-val">${esc(ev.checkOutTime)}</span></div>`
+      : `<div class="tl-time-col"></div>`;
+    return `<div class="tl-item ev-checkout">
+      ${timeCol}
+      <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-solid"></div></div>
+      <div class="tl-card" onclick="openEditModal(${ev.id})">
+        <div class="tl-badge checkout-badge">🔑 チェックアウト</div>
+        <div class="tl-title">${esc(ev.hotelName||'宿泊')}</div>
+      </div></div>`;
+  }
+
+  function renderStayIndicator(ev) {
+    return `<div class="tl-item ev-staying">
+      <div class="tl-time-col"></div>
+      <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-stay"></div></div>
+      <div class="tl-card" onclick="openEditModal(${ev.id})">
+        <div class="staying-row"><span>🏨</span><span class="staying-text">宿泊中：${esc(ev.hotelName||'ホテル')}</span></div>
+      </div></div>`;
+  }
+
+  /* ===================== 日付セレクト ===================== */
+  function buildDateSelectFor(id, selected) {
+    const days = generateDays();
+    if (days.length) {
+      const today = toLocalDateStr(new Date());
+      const def   = selected || (days.includes(today) ? today : days[0]);
+      const opts  = days.map(d =>
+        `<option value="${d}"${d===def?' selected':''}>${formatDayHeader(d)}</option>`
+      ).join('');
+      return `<select id="${id}">${opts}</select>`;
+    }
+    return `<input type="date" id="${id}" value="${esc(selected||'')}">`;
+  }
+
+  /* ===================== マップ ===================== */
+  function initMap() {
+    if (leafletMap) { leafletMap.invalidateSize(); return; }
+    leafletMap = L.map('map-container').setView([35.68, 139.69], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(leafletMap);
+  }
+
+  function createMarkerIcon(label, type) {
+    const bg = type === 'stay' ? '#7c5cfc' : '#4f7dff';
+    return L.divIcon({
+      className: 'map-marker',
+      html: `<div class="marker-dot" style="background:${bg}">${label}</div>`,
+      iconSize: [30,30], iconAnchor: [15,15], popupAnchor: [0,-20]
+    });
+  }
+
+  function buildSpotPopup(ev) {
+    const dateEl = ev.date ? `<div style="font-size:11px;color:#999;margin-bottom:3px">${formatDayHeader(ev.date)}</div>` : '';
+    const timeEl = ev.time ? ` <span style="color:#6b7280;font-size:12px">${ev.time}</span>` : '';
+    const memoEl = ev.memo ? `<div style="font-size:12px;color:#6b7280;margin-top:4px">${esc(ev.memo)}</div>` : '';
+    const link   = `<div style="margin-top:6px"><a href="${mapsUrl(ev.place)}" target="_blank" style="font-size:11px;color:#4f7dff">地図で開く →</a></div>`;
+    return `<div style="min-width:140px;font-family:sans-serif">${dateEl}<strong>${esc(ev.place)}</strong>${timeEl}${memoEl}${link}</div>`;
+  }
+
+  function buildStayPopup(ev) {
+    const dateEl   = ev.date ? `<div style="font-size:11px;color:#999;margin-bottom:3px">${formatDayHeader(ev.date)}</div>` : '';
+    const inTime   = ev.checkInTime  ? ` IN ${ev.checkInTime}` : '';
+    const outParts = [];
+    if (ev.checkOutDate) outParts.push(formatDayHeader(ev.checkOutDate));
+    if (ev.checkOutTime) outParts.push(ev.checkOutTime);
+    const outStr   = outParts.length ? ` → OUT ${outParts.join(' ')}` : '';
+    const addrEl   = ev.address ? `<div style="font-size:12px;color:#6b7280;margin-top:2px">${esc(ev.address)}</div>` : '';
+    const memoEl   = ev.memo    ? `<div style="font-size:12px;color:#6b7280;margin-top:4px">${esc(ev.memo)}</div>` : '';
+    const q        = ev.address || ev.hotelName;
+    const link     = q ? `<div style="margin-top:6px"><a href="${mapsUrl(q)}" target="_blank" style="font-size:11px;color:#7c5cfc">地図で開く →</a></div>` : '';
+    const timeInfo = (inTime||outStr) ? `<div style="font-size:11px;color:#7c5cfc;margin-top:2px">${inTime}${outStr}</div>` : '';
+    return `<div style="min-width:140px;font-family:sans-serif">${dateEl}<strong>🏨 ${esc(ev.hotelName||'宿泊')}</strong>${timeInfo}${addrEl}${memoEl}${link}</div>`;
+  }
+
+  async function updateMapMarkers() {
+    if (!leafletMap) return;
+    const gen = ++mapUpdateGen;
+
+    mapMarkers.forEach(m => leafletMap.removeLayer(m));
+    mapMarkers = [];
+
+    // 日付フィルタリング（'all' = 全件、日付文字列 = その日のみ）
+    let toMap = state.itinerary.filter(ev => !ev.undated);
+    if (mapScope !== 'all') {
+      const day = mapScope;
+      toMap = toMap.filter(ev => {
+        if ((ev.type||'spot') === 'stay') {
+          const inD  = ev.date || '';
+          const outD = ev.checkOutDate || ev.date || '';
+          return day >= inD && day <= outD;
+        }
+        return ev.date === day;
+      });
+    }
+
+    // ピン対象収集
+    const spots = toMap.filter(ev => (ev.type||'spot')==='spot' && ev.place)
+      .sort((a,b) => (a.date||'').localeCompare(b.date||'')||eventSortKey(a).localeCompare(eventSortKey(b)));
+    // 宿泊：住所を優先、なければホテル名でジオコーディングを試みる
+    const stays = toMap.filter(ev => ev.type==='stay' && (ev.address||ev.hotelName))
+      .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+    const items = [
+      ...spots.map(ev => ({ ev, key: ev.place,                   mtype:'spot', api:'nominatim' })),
+      ...stays.map(ev => ({ ev, key: ev.address || ev.hotelName, mtype:'stay', api:'gsi'       })),
+    ];
+
+    const statusEl = document.getElementById('map-status');
+    if (!items.length) {
+      statusEl.textContent = '地図に表示できる場所がありません';
+      statusEl.classList.remove('hidden');
+      setTimeout(() => statusEl.classList.add('hidden'), 3000);
+      return;
+    }
+
+    const bounds = [];
+    let spotNum = 0, stayNum = 0, failNum = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      if (gen !== mapUpdateGen) return;
+      const { ev, key, mtype, api } = items[i];
+      statusEl.textContent = `ジオコーディング中... (${i+1}/${items.length})`;
+      statusEl.classList.remove('hidden');
+
+      const coord = await queueGeocode(key, api);
+      if (gen !== mapUpdateGen) return;
+      if (!coord) { failNum++; continue; }
+
+      const label  = mtype === 'stay' ? '🏨' : (++spotNum);
+      if (mtype === 'stay') stayNum++;
+      const popup  = mtype === 'stay' ? buildStayPopup(ev) : buildSpotPopup(ev);
+      const marker = L.marker([coord.lat, coord.lon], { icon: createMarkerIcon(label, mtype) })
+        .bindPopup(popup).addTo(leafletMap);
+      mapMarkers.push(marker);
+      bounds.push([coord.lat, coord.lon]);
+    }
+
+    if (gen !== mapUpdateGen) return;
+
+    if (!bounds.length) {
+      const msg = failNum
+        ? `${failNum}件の場所を地図上で見つけられませんでした（住所を入力するとより正確です）`
+        : '地図に表示できる場所がありません';
+      statusEl.textContent = msg;
+      setTimeout(() => statusEl.classList.add('hidden'), 4000);
+    } else {
+      leafletMap.fitBounds(bounds, { padding:[40,40], maxZoom:15 });
+      const parts = [];
+      if (spotNum) parts.push(`スポット${spotNum}件`);
+      if (stayNum) parts.push(`宿泊${stayNum}件`);
+      if (failNum) parts.push(`${failNum}件は位置不明`);
+      statusEl.textContent = parts.join('・');
+      setTimeout(() => statusEl.classList.add('hidden'), 3000);
+    }
+  }
+
+  /* ===================== ジオコーディング（スポット:Nominatim / 宿泊:国土地理院） ===================== */
+  async function queueGeocode(place, api) {
+    if (!place) return null;
+    const cacheKey = `${api}:${place}`;
+    if (Object.prototype.hasOwnProperty.call(geocodeCache, cacheKey)) return geocodeCache[cacheKey];
+    return new Promise(resolve => {
+      geocodeQueue.push({ place, api, cacheKey, resolve });
+      if (!geocodeBusy) runGeocodeQueue();
+    });
+  }
+
+  async function runGeocodeQueue() {
+    geocodeBusy = true;
+    while (geocodeQueue.length) {
+      const { place, api, cacheKey, resolve } = geocodeQueue.shift();
+      if (Object.prototype.hasOwnProperty.call(geocodeCache, cacheKey)) {
+        resolve(geocodeCache[cacheKey]); continue;
+      }
+      let coord = null;
+      try {
+        if (api === 'gsi') {
+          // 国土地理院：日本住所専用
+          const res = await fetch(
+            `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(place)}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length) {
+              const [lon, lat] = data[0].geometry.coordinates;
+              coord = { lat, lon };
+            }
+          }
+        } else {
+          // Nominatim：場所名・ランドマーク検索
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`,
+            { headers: { 'Accept-Language': 'ja,en;q=0.9', 'User-Agent': 'TravelPlanApp/1.0' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.length) coord = { lat: +data[0].lat, lon: +data[0].lon };
+          }
+        }
+      } catch (e) { console.warn('Geocode error:', place, e); }
+      geocodeCache[cacheKey] = coord;
+      if (!coord) console.info('Geocode: not found for', place, '(api:', api, ')');
+      resolve(coord);
+      if (geocodeQueue.length) await new Promise(r => setTimeout(r, 1100));
+    }
+    geocodeBusy = false;
+  }
+
+  /* ===================== モーダル：タイプ切替 ===================== */
+  function setEventType(type) {
+    currentEventType = type;
+    ['spot','move','stay'].forEach(t => {
+      document.getElementById(`type-btn-${t}`).classList.toggle('active', t===type);
+      document.getElementById(`${t}-fields`).classList.toggle('hidden', t!==type);
+    });
+    document.getElementById('date-field-label').textContent =
+      type === 'stay' ? 'チェックイン日' : '日付';
+
+    const undatedLabel = document.getElementById('undated-label');
+    if (type === 'spot') {
+      undatedLabel.style.display = 'flex';
+    } else {
+      undatedLabel.style.display = 'none';
+      // spot 以外に切り替えたとき undated を解除
+      document.getElementById('ev-undated').checked = false;
+      toggleUndated();
+    }
+  }
+
+  /* ---- Bug Fix: toggleUndated で一括 UI 更新 ---- */
+  function toggleUndated() {
+    const undated = document.getElementById('ev-undated').checked;
+    document.getElementById('ev-date-wrap').style.display       = undated ? 'none' : '';
+    document.getElementById('spot-time-field').style.display    = undated ? 'none' : '';
+    document.getElementById('date-required-mark').style.display = undated ? 'none' : '';
+  }
+
+  /* ===================== モーダル：開閉 ===================== */
+  function openAddModal() {
+    editingId = null;
+    document.getElementById('modal-title-text').textContent = '予定を追加';
+    document.getElementById('ev-date-wrap').innerHTML          = buildDateSelectFor('ev-date', '');
+    document.getElementById('ev-checkout-date-wrap').innerHTML = buildDateSelectFor('ev-checkout-date', '');
+    setEventType('spot');
+    document.getElementById('ev-undated').checked = false;
+    toggleUndated();
+    // フィールドリセット
+    ['ev-time','ev-place','ev-from','ev-depart-time','ev-arrive-time','ev-to',
+     'ev-hotel-name','ev-address','ev-checkin-time','ev-checkout-time'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('ev-transport').value = 'train';
+    document.getElementById('ev-memo').value       = '';
+    document.getElementById('ev-stay-memo').value  = '';
+    document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('modal-delete-btn').classList.add('hidden');
+    document.getElementById('event-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('ev-place').focus(), 120);
+  }
+
+  function openEditModal(id) {
+    const ev = state.itinerary.find(e => e.id === id);
+    if (!ev) return;
+    editingId = id;
+    const type = ev.type || 'spot';
+    document.getElementById('modal-title-text').textContent = '予定を編集';
+
+    // チェックアウト日セレクトをリセット
+    document.getElementById('ev-checkout-date-wrap').innerHTML = buildDateSelectFor('ev-checkout-date', '');
+
+    setEventType(type); // undated ラベルの show/hide もここで行う
+
+    if (type === 'stay') {
+      document.getElementById('ev-date-wrap').innerHTML         = buildDateSelectFor('ev-date', ev.date||'');
+      document.getElementById('ev-hotel-name').value            = ev.hotelName   || '';
+      document.getElementById('ev-address').value               = ev.address     || '';
+      document.getElementById('ev-checkin-time').value          = ev.checkInTime  || '';
+      document.getElementById('ev-checkout-date-wrap').innerHTML = buildDateSelectFor('ev-checkout-date', ev.checkOutDate||'');
+      document.getElementById('ev-checkout-time').value         = ev.checkOutTime || '';
+      document.getElementById('ev-stay-memo').value             = ev.memo        || '';
+
+    } else if (type === 'move') {
+      document.getElementById('ev-date-wrap').innerHTML = buildDateSelectFor('ev-date', ev.date||'');
+      document.getElementById('ev-transport').value     = ev.transport     || 'train';
+      document.getElementById('ev-depart-time').value   = ev.departureTime || '';
+      document.getElementById('ev-from').value          = ev.from          || '';
+      document.getElementById('ev-arrive-time').value   = ev.arrivalTime   || '';
+      document.getElementById('ev-to').value            = ev.to            || '';
+
+    } else { // spot
+      // 日付セレクトを先に構築してから undated チェックを反映
+      document.getElementById('ev-date-wrap').innerHTML = buildDateSelectFor('ev-date', ev.date||'');
+      document.getElementById('ev-undated').checked = !!ev.undated;
+      toggleUndated(); // ← Bug Fix: プログラム的に checked を変えた後に必ず呼ぶ
+      document.getElementById('ev-time').value  = ev.time  || '';
+      document.getElementById('ev-place').value = ev.place || '';
+      document.getElementById('ev-memo').value  = ev.memo  || '';
+    }
+
+    document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('modal-delete-btn').classList.remove('hidden');
+    document.getElementById('event-modal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('event-modal').classList.add('hidden');
+    editingId = null;
+  }
+  function handleModalBackdrop(e) {
+    if (e.target === document.getElementById('event-modal')) closeModal();
+  }
+
+  /* ===================== モーダル：保存 ===================== */
+  function saveEvent() {
+    const errEl = document.getElementById('modal-error');
+    errEl.style.display = 'none';
+    let newData;
+
+    if (currentEventType === 'stay') {
+      const dateEl    = document.getElementById('ev-date');
+      const date      = dateEl ? dateEl.value : '';
+      const hotelName = document.getElementById('ev-hotel-name').value.trim();
+      if (!date)      { errEl.textContent='チェックイン日を選択してください'; errEl.style.display='block'; return; }
+      if (!hotelName) { errEl.textContent='宿泊先名を入力してください';       errEl.style.display='block'; return; }
+      const coEl = document.getElementById('ev-checkout-date');
+      newData = {
+        type: 'stay', date, hotelName,
+        address:      document.getElementById('ev-address').value.trim(),
+        checkInTime:  document.getElementById('ev-checkin-time').value,
+        checkOutDate: coEl ? coEl.value : '',
+        checkOutTime: document.getElementById('ev-checkout-time').value,
+        memo:         document.getElementById('ev-stay-memo').value.trim(),
+      };
+
+    } else if (currentEventType === 'move') {
+      const dateEl = document.getElementById('ev-date');
+      const date   = dateEl ? dateEl.value : '';
+      if (!date) { errEl.textContent='日付を選択してください'; errEl.style.display='block'; return; }
+      const from = document.getElementById('ev-from').value.trim();
+      const to   = document.getElementById('ev-to').value.trim();
+      if (!from && !to) { errEl.textContent='出発地または到着地を入力してください'; errEl.style.display='block'; return; }
+      newData = {
+        type: 'move', date,
+        transport:     document.getElementById('ev-transport').value,
+        departureTime: document.getElementById('ev-depart-time').value,
+        from,
+        arrivalTime:   document.getElementById('ev-arrive-time').value,
+        to,
+      };
+
+    } else { // spot
+      const isUndated = document.getElementById('ev-undated').checked;
+      const dateEl    = document.getElementById('ev-date');
+      const date      = isUndated ? '' : (dateEl ? dateEl.value : '');
+      if (!isUndated && !date) { errEl.textContent='日付を選択してください'; errEl.style.display='block'; return; }
+      const place = document.getElementById('ev-place').value.trim();
+      const memo  = document.getElementById('ev-memo').value.trim();
+      if (!place && !memo) { errEl.textContent='場所名またはメモを入力してください'; errEl.style.display='block'; return; }
+      newData = { type:'spot', date, time: isUndated ? '' : document.getElementById('ev-time').value, place, memo };
+      if (isUndated) newData.undated = true;
+    }
+
+    const wasEditing = editingId !== null;
+    if (wasEditing) {
+      const idx = state.itinerary.findIndex(e => e.id === editingId);
+      if (idx !== -1) state.itinerary[idx] = { id: state.itinerary[idx].id, ...newData };
+    } else {
+      state.itinerary.push({ id: Date.now(), ...newData });
+    }
+
+    closeModal();
+    renderItinerary();
+    save();
+    if (currentView === 'map' && leafletMap) updateMapMarkers();
+    showToast(wasEditing ? '予定を更新しました' : '予定を追加しました');
+  }
+
+  function deleteEventFromModal() {
+    if (editingId === null) return;
+    state.itinerary = state.itinerary.filter(e => e.id !== editingId);
+    closeModal();
+    renderItinerary();
+    save();
+    if (currentView === 'map' && leafletMap) updateMapMarkers();
+    showToast('予定を削除しました');
+  }
+
+  /* ===================== トースト ===================== */
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  /* ===================== イベントリスナー ===================== */
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  window.addEventListener('resize', () => {
+    if (currentView === 'map' && leafletMap && !mapFullscreen) {
+      resizeMapHeight();
+      leafletMap.invalidateSize();
+    }
+  });
+
+  /* ===================== 起動 ===================== */
+  window.addEventListener('DOMContentLoaded', () => {
+    const rid = new URLSearchParams(location.search).get('room');
+    if (!rid) { location.href = 'index.html'; return; }
+    if (typeof firebase === 'undefined') { showErrMsg('ライブラリ読み込みエラー', 'Firebase JS の読み込みに失敗しました。'); return; }
+    const saved = loadFirebaseConfig();
+    if (!saved) { showOverlay('config'); return; }
+    try { db = initFirebaseApp(saved); loadRoom(rid); }
+    catch (err) { console.error(err); showConfigOverlay(); }
+  });
+</script>
+</body>
+</html>

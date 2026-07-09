@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>持ち物リスト</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #4f7dff; --primary-dark: #3a63e0;
+    --grad-start: #4f7dff; --grad-end: #7c5cfc;
+    --danger: #ff5252; --success: #4caf50;
+    --bg: #f0f2f8; --card: #ffffff;
+    --text: #1a1a2e; --subtext: #6b7280;
+    --border: #e5e7eb; --shadow: 0 2px 16px rgba(0,0,0,0.07);
+  }
+  body {
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding-bottom: 100px;
+  }
+  .hidden { display: none !important; }
+
+  /* ---- オーバーレイ ---- */
+  .overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 300;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 24px; overflow-y: auto;
+  }
+  .overlay-card {
+    background: white; border-radius: 20px; padding: 36px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    text-align: center; width: 100%; max-width: 360px;
+  }
+  .overlay-icon  { font-size: 60px; margin-bottom: 18px; }
+  .overlay-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .overlay-sub   { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
+  .spinner {
+    width: 48px; height: 48px; border: 4px solid var(--border);
+    border-top-color: var(--primary); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- 設定フォーム ---- */
+  .config-card {
+    background: white; border-radius: 20px; padding: 32px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center;
+  }
+  .config-fields { text-align: left; margin: 4px 0 16px; }
+  .cfg-group { margin-bottom: 10px; }
+  .cfg-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  .config-hint { font-size: 11px; color: var(--subtext); margin-top: 14px; line-height: 1.8; text-align: left; }
+
+  /* ---- ヘッダー ---- */
+  header {
+    background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
+    color: white; padding: 14px 16px 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .header-back {
+    background: rgba(255,255,255,0.18); border: none; color: white;
+    border-radius: 9px; padding: 7px 12px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s; text-decoration: none;
+  }
+  .header-back:active { background: rgba(255,255,255,0.35); }
+  .header-center { flex: 1; text-align: center; min-width: 0; }
+  .header-title  { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-date   { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+  .header-right  { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .rt-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.3); transition: background 0.3s; }
+  .rt-dot.connected  { background: #69f0ae; }
+  .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+  .share-btn {
+    background: rgba(255,255,255,0.22); border: none; color: white;
+    border-radius: 9px; padding: 7px 11px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .share-btn:active { background: rgba(255,255,255,0.38); }
+  .settings-btn { background: none; border: none; color: rgba(255,255,255,0.65); font-size: 15px; cursor: pointer; padding: 2px 3px; }
+  .settings-btn:hover { color: white; }
+
+  /* ---- フィーチャーナビ ---- */
+  .feature-nav {
+    background: white; display: flex; border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 50;
+  }
+  .feature-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px 8px; border-bottom: 2px solid transparent;
+    text-decoration: none; color: var(--subtext); font-size: 10px; font-weight: 600;
+    transition: all 0.2s; gap: 2px;
+  }
+  .feature-tab .ft-icon { font-size: 18px; }
+  .feature-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* ---- フォーム ---- */
+  input, select {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-size: 15px; color: var(--text);
+    background: white; outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  input:focus, select:focus { border-color: var(--primary); }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
+  .btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:active { background: var(--primary-dark); }
+  .btn-full { width: 100%; }
+  .btn-outline { background: transparent; color: var(--subtext); border: 1.5px solid var(--border); font-size: 13px; padding: 9px 16px; }
+
+  /* ---- コンテンツ ---- */
+  .content { padding: 16px; max-width: 600px; margin: 0 auto; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--subtext); }
+  .empty-state .icon { font-size: 56px; margin-bottom: 14px; }
+  .empty-state h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .empty-state p  { font-size: 14px; line-height: 1.7; }
+
+  /* ---- プログレスバー ---- */
+  .progress-card {
+    background: white; border-radius: 14px; padding: 14px 16px;
+    margin-bottom: 14px; box-shadow: var(--shadow);
+  }
+  .progress-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .progress-label { font-size: 13px; color: var(--subtext); font-weight: 600; }
+  .progress-count { font-size: 16px; font-weight: 700; color: var(--text); }
+  .progress-bar {
+    height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--primary), #7c5cfc);
+    border-radius: 4px; transition: width 0.4s ease;
+  }
+  .progress-fill.done { background: linear-gradient(90deg, #43e97b, #38f9d7); }
+
+  /* ---- グループセクション ---- */
+  .group-section { margin-bottom: 16px; }
+  .group-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px; margin-bottom: 8px;
+  }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white; flex-shrink: 0;
+  }
+  .group-name  { font-size: 14px; font-weight: 700; flex: 1; }
+  .group-badge {
+    font-size: 11px; font-weight: 700; color: var(--subtext);
+    background: #f0f2f8; border-radius: 12px; padding: 2px 9px;
+  }
+
+  /* ---- アイテム ---- */
+  .pack-item {
+    background: white; border-radius: 12px; padding: 13px 14px;
+    margin-bottom: 8px; box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .pack-item:active { transform: scale(0.98); box-shadow: none; }
+  .pack-item.checked { opacity: 0.6; }
+  .check-btn {
+    background: none; border: none; font-size: 22px; cursor: pointer;
+    padding: 2px; flex-shrink: 0; line-height: 1; transition: transform 0.15s;
+  }
+  .check-btn:active { transform: scale(0.8); }
+  .item-body { flex: 1; min-width: 0; }
+  .item-name {
+    font-size: 15px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pack-item.checked .item-name { text-decoration: line-through; color: var(--subtext); }
+  .item-chevron { color: var(--subtext); font-size: 18px; flex-shrink: 0; }
+
+  /* ---- FAB ---- */
+  .fab {
+    position: fixed; bottom: 24px; right: 16px;
+    width: 56px; height: 56px; background: var(--primary); color: white;
+    border: none; border-radius: 50%; font-size: 28px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(79,125,255,0.45);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; z-index: 200;
+  }
+  .fab:active { transform: scale(0.92); }
+
+  /* ---- モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    z-index: 500; display: flex; align-items: flex-end;
+  }
+  .modal-sheet {
+    background: white; border-radius: 20px 20px 0 0; padding: 22px 20px 40px;
+    width: 100%; max-height: 85vh; overflow-y: auto; animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .modal-title  { font-size: 18px; font-weight: 700; }
+  .modal-close  { background: none; border: none; font-size: 22px; color: var(--subtext); cursor: pointer; padding: 4px; }
+  .modal-field  { margin-bottom: 12px; }
+  .modal-label  { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-del-btn  { flex: 1; padding: 13px 0; border: none; border-radius: 10px; background: #fff0f0; color: var(--danger); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .modal-del-btn:active { transform: scale(0.96); }
+  .modal-save-btn { flex: 2; padding: 13px 0; border: none; border-radius: 10px; background: var(--primary); color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .modal-save-btn:active { background: var(--primary-dark); transform: scale(0.96); }
+
+  /* ---- トースト ---- */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1a1a2e; color: white; padding: 10px 22px; border-radius: 24px;
+    font-size: 13px; font-weight: 600; opacity: 0; transition: all 0.3s;
+    pointer-events: none; white-space: nowrap; z-index: 600;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Firebase設定画面 -->
+<div id="overlay-config" class="overlay">
+  <div class="config-card">
+    <div class="overlay-icon">🔥</div>
+    <div class="overlay-title">Firebase 設定</div>
+    <div class="overlay-sub" style="margin-bottom:12px">Firebase コンソール →「プロジェクト設定」→「ウェブアプリ」の<br>firebaseConfig を入力してください</div>
+    <div class="config-fields">
+      <div class="cfg-group"><label class="cfg-label">apiKey *</label><input id="cfg-apiKey" type="text" placeholder="AIzaSy..." style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">authDomain *</label><input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">projectId *</label><input id="cfg-projectId" type="text" placeholder="your-project-id" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">appId *</label><input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">storageBucket（省略可）</label><input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app" style="font-size:13px;padding:10px 12px"></div>
+      <div class="cfg-group"><label class="cfg-label">messagingSenderId（省略可）</label><input id="cfg-messagingSenderId" type="text" placeholder="123456789012" style="font-size:13px;padding:10px 12px"></div>
+    </div>
+    <div id="cfg-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;text-align:left"></div>
+    <button class="btn btn-primary btn-full" onclick="applyConfig()" style="font-size:16px;padding:15px">保存して続ける</button>
+    <div class="config-hint">※ 設定はこのブラウザのlocalStorageに保存されます</div>
+  </div>
+</div>
+
+<!-- ローディング -->
+<div id="overlay-loading" class="overlay hidden">
+  <div class="spinner"></div>
+  <div style="color:var(--subtext);font-size:14px;font-weight:600">読み込み中...</div>
+</div>
+
+<!-- エラー -->
+<div id="overlay-error" class="overlay hidden">
+  <div class="overlay-card">
+    <div class="overlay-icon">😕</div>
+    <div class="overlay-title" id="error-title">エラー</div>
+    <div class="overlay-sub" id="error-detail" style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
+    <a href="index.html" class="btn btn-primary btn-full" style="font-size:16px;padding:15px;margin-bottom:8px;display:block;text-align:center;text-decoration:none">← トップに戻る</a>
+    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()">⚙️ Firebase設定を変更</button>
+  </div>
+</div>
+
+<!-- メインアプリ -->
+<div id="app-shell" class="hidden">
+
+<header>
+  <a href="index.html" class="header-back">← 戻る</a>
+  <div class="header-center">
+    <div id="header-title" class="header-title">読み込み中...</div>
+    <div id="header-date" class="header-date"></div>
+  </div>
+  <div class="header-right">
+    <div id="rt-dot" class="rt-dot connecting"></div>
+    <button class="settings-btn" onclick="showConfigOverlay()">⚙️</button>
+    <button class="share-btn" onclick="shareRoom()">🔗</button>
+  </div>
+</header>
+
+<nav class="feature-nav" id="feature-nav"></nav>
+
+<main class="content" id="packing-content"></main>
+
+</div><!-- #app-shell -->
+
+<button class="fab hidden" id="fab" onclick="openAddModal()">＋</button>
+
+<!-- アイテム追加/編集モーダル -->
+<div id="item-modal" class="modal-overlay hidden" onclick="handleModalBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span id="modal-title-text" class="modal-title">アイテムを追加</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">アイテム名 <span style="color:var(--danger)">*</span></label>
+      <input id="item-name-input" type="text" placeholder="例：日焼け止め、充電器、保険証" maxlength="40">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">担当者</label>
+      <select id="item-assignee">
+        <option value="">未定</option>
+      </select>
+    </div>
+    <div id="modal-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px"></div>
+    <div class="modal-actions">
+      <button id="modal-delete-btn" class="modal-del-btn hidden" onclick="deleteItemFromModal()">🗑 削除</button>
+      <button class="modal-save-btn" onclick="saveItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  let roomId          = null;
+  let state           = { name: '', packingList: [], members: [] };
+  let db              = null;
+  let unsubscribeRoom = null;
+  let editingId       = null;
+
+  // ---- Firebase設定 ----
+  function showConfigOverlay() {
+    const saved = loadFirebaseConfig();
+    if (saved) {
+      document.getElementById('cfg-apiKey').value            = saved.apiKey            || '';
+      document.getElementById('cfg-authDomain').value        = saved.authDomain        || '';
+      document.getElementById('cfg-projectId').value         = saved.projectId         || '';
+      document.getElementById('cfg-appId').value             = saved.appId             || '';
+      document.getElementById('cfg-storageBucket').value     = saved.storageBucket     || '';
+      document.getElementById('cfg-messagingSenderId').value = saved.messagingSenderId || '';
+    }
+    document.getElementById('cfg-error').style.display = 'none';
+    showOverlay('config');
+  }
+
+  function applyConfig() {
+    const apiKey            = document.getElementById('cfg-apiKey').value.trim();
+    const authDomain        = document.getElementById('cfg-authDomain').value.trim();
+    const projectId         = document.getElementById('cfg-projectId').value.trim();
+    const appId             = document.getElementById('cfg-appId').value.trim();
+    const storageBucket     = document.getElementById('cfg-storageBucket').value.trim();
+    const messagingSenderId = document.getElementById('cfg-messagingSenderId').value.trim();
+    const errEl = document.getElementById('cfg-error');
+    if (!apiKey || !authDomain || !projectId || !appId) {
+      errEl.textContent = '必須項目を入力してください'; errEl.style.display = 'block'; return;
+    }
+    const cfg = { apiKey, authDomain, projectId, appId };
+    if (storageBucket)     cfg.storageBucket     = storageBucket;
+    if (messagingSenderId) cfg.messagingSenderId = messagingSenderId;
+    try {
+      if (firebase.apps.length > 0) { saveFirebaseConfig(cfg); location.reload(); return; }
+      db = initFirebaseApp(cfg);
+      saveFirebaseConfig(cfg);
+      errEl.style.display = 'none';
+      const rid = new URLSearchParams(location.search).get('room');
+      if (rid) loadRoom(rid); else location.href = 'index.html';
+    } catch (err) {
+      errEl.textContent = err.message || 'Firebase初期化に失敗しました'; errEl.style.display = 'block';
+    }
+  }
+
+  // ---- オーバーレイ ----
+  function showOverlay(name) {
+    document.getElementById('overlay-config').classList.toggle('hidden',  name !== 'config');
+    document.getElementById('overlay-loading').classList.toggle('hidden', name !== 'loading');
+    document.getElementById('overlay-error').classList.toggle('hidden',   name !== 'error');
+    document.getElementById('app-shell').classList.toggle('hidden',       name !== 'app');
+    document.getElementById('fab').classList.toggle('hidden',             name !== 'app');
+  }
+  function showErrMsg(title, detail) {
+    document.getElementById('error-title').textContent  = title;
+    document.getElementById('error-detail').textContent = detail;
+    showOverlay('error');
+  }
+
+  // ---- フィーチャーナビ ----
+  function buildFeatureNav() {
+    const rid = roomId || new URLSearchParams(location.search).get('room');
+    if (!rid) return;
+    const tabs = [
+      { id: 'itinerary', icon: '📅', label: '旅程',    href: `itinerary.html?room=${rid}` },
+      { id: 'warikan',   icon: '💰', label: '割り勘',  href: `warikan.html?room=${rid}`   },
+      { id: 'packing',   icon: '🎒', label: '持ち物',  href: `packing.html?room=${rid}`   },
+    ];
+    document.getElementById('feature-nav').innerHTML = tabs.map(t =>
+      `<a href="${t.href}" class="feature-tab${t.id === 'packing' ? ' active' : ''}">
+        <span class="ft-icon">${t.icon}</span>${esc(t.label)}
+      </a>`
+    ).join('');
+  }
+
+  // ---- 部屋読み込み ----
+  async function loadRoom(id) {
+    showOverlay('loading');
+    try {
+      const snap = await db.collection('rooms').doc(id).get();
+      if (!snap.exists) { showErrMsg('旅行が見つかりません', 'このURLは無効か、旅行が存在しません。'); return; }
+      const data = snap.data();
+      roomId = id;
+      state  = {
+        name:        data.name        || '旅行',
+        packingList: data.packingList || [],
+        members:     data.members     || []
+      };
+      applyTheme(data.theme || 'ocean');
+      updateHeader(data);
+      buildFeatureNav();
+      subscribeToRoom(id);
+      showOverlay('app');
+      renderPacking();
+    } catch (err) { showErrMsg('読み込みエラー', err.message || String(err)); }
+  }
+
+  function updateHeader(data) {
+    document.getElementById('header-title').textContent = state.name;
+    const dateStr = formatTripDate(data && data.startDate, data && data.endDate);
+    document.getElementById('header-date').textContent = dateStr ? `📅 ${dateStr}` : '';
+    document.title = `${state.name} - 持ち物`;
+  }
+
+  function subscribeToRoom(id) {
+    if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+    setRtStatus('connecting');
+    let first = true;
+    unsubscribeRoom = db.collection('rooms').doc(id).onSnapshot(snap => {
+      setRtStatus('connected');
+      if (!snap.exists || first) { first = false; return; }
+      const data = snap.data();
+      const nextList    = data.packingList || [];
+      const nextMembers = data.members     || [];
+      if (
+        JSON.stringify(nextList)    === JSON.stringify(state.packingList) &&
+        JSON.stringify(nextMembers) === JSON.stringify(state.members)
+      ) return;
+      state.packingList = nextList;
+      state.members     = nextMembers;
+      renderPacking();
+      showToast('🔄 データが更新されました');
+    }, err => { console.error(err); setRtStatus('connecting'); });
+  }
+
+  function setRtStatus(s) { document.getElementById('rt-dot').className = 'rt-dot ' + s; }
+
+  async function save() {
+    if (!roomId || !db) return;
+    try { await db.collection('rooms').doc(roomId).update({ packingList: state.packingList }); }
+    catch (err) { console.error('save error:', err); }
+  }
+
+  async function shareRoom() {
+    const url = location.origin + location.pathname + '?room=' + roomId;
+    try { await navigator.clipboard.writeText(url); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    showToast('共有URLをコピーしました');
+  }
+
+  // ---- チェックトグル ----
+  function toggleCheck(event, id) {
+    event.stopPropagation();
+    const item = state.packingList.find(i => i.id === id);
+    if (!item) return;
+    item.checked = !item.checked;
+    renderPacking();
+    save();
+  }
+
+  // ---- レンダリング ----
+  function renderPacking() {
+    const content = document.getElementById('packing-content');
+    const list    = state.packingList;
+
+    if (list.length === 0) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">🎒</div>
+          <h3>持ち物リストが空です</h3>
+          <p>「＋」ボタンからアイテムを追加しましょう</p>
+        </div>`;
+      return;
+    }
+
+    // 進捗
+    const total   = list.length;
+    const checked = list.filter(i => i.checked).length;
+    const pct     = total > 0 ? Math.round(checked / total * 100) : 0;
+    const allDone = checked === total;
+
+    const progressHtml = `
+      <div class="progress-card">
+        <div class="progress-row">
+          <span class="progress-label">準備状況</span>
+          <span class="progress-count">${checked} / ${total} 個</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill${allDone ? ' done' : ''}" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+
+    // メンバーごとにグループ化
+    const groups = {};
+    state.members.forEach(m => groups[m] = []);
+    groups['未定'] = [];
+
+    list.forEach(item => {
+      const key = state.members.includes(item.assignee) ? item.assignee : '未定';
+      groups[key].push(item);
+    });
+
+    let groupsHtml = '';
+    // メンバーグループ（アイテムがあるものだけ）
+    state.members.forEach(m => {
+      if (groups[m].length > 0) groupsHtml += renderGroup(m, groups[m]);
+    });
+    // 未定グループ
+    if (groups['未定'].length > 0) groupsHtml += renderGroup('未定', groups['未定']);
+
+    content.innerHTML = progressHtml + groupsHtml;
+  }
+
+  function renderGroup(name, items) {
+    const checkedCount = items.filter(i => i.checked).length;
+    const isUnassigned = name === '未定';
+    const avatarBg     = isUnassigned ? '#9e9e9e' : colorFor(name);
+    const avatarText   = isUnassigned ? '?' : initials(name);
+
+    const itemsHtml = items.map(item => `
+      <div class="pack-item${item.checked ? ' checked' : ''}" onclick="openEditModal(${item.id})">
+        <button class="check-btn" onclick="toggleCheck(event, ${item.id})" title="チェックを切り替え">
+          ${item.checked ? '✅' : '⬜'}
+        </button>
+        <div class="item-body">
+          <div class="item-name">${esc(item.name)}</div>
+        </div>
+        <div class="item-chevron">›</div>
+      </div>`).join('');
+
+    return `
+      <div class="group-section">
+        <div class="group-header">
+          <div class="avatar" style="background:${avatarBg}">${avatarText}</div>
+          <span class="group-name">${esc(name)}</span>
+          <span class="group-badge">${checkedCount}/${items.length}</span>
+        </div>
+        ${itemsHtml}
+      </div>`;
+  }
+
+  // ---- 担当者セレクト生成 ----
+  function buildAssigneeSelect(selected) {
+    const opts = state.members.map(m =>
+      `<option value="${esc(m)}"${m === selected ? ' selected' : ''}>${esc(m)}</option>`
+    ).join('');
+    return `<option value=""${!selected ? ' selected' : ''}>未定</option>${opts}`;
+  }
+
+  // ---- モーダル ----
+  function openAddModal() {
+    editingId = null;
+    document.getElementById('modal-title-text').textContent = 'アイテムを追加';
+    document.getElementById('item-name-input').value = '';
+    document.getElementById('item-assignee').innerHTML = buildAssigneeSelect('');
+    document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('modal-delete-btn').classList.add('hidden');
+    document.getElementById('item-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('item-name-input').focus(), 120);
+  }
+
+  function openEditModal(id) {
+    const item = state.packingList.find(i => i.id === id);
+    if (!item) return;
+    editingId = id;
+    document.getElementById('modal-title-text').textContent = 'アイテムを編集';
+    document.getElementById('item-name-input').value = item.name;
+    document.getElementById('item-assignee').innerHTML = buildAssigneeSelect(item.assignee || '');
+    document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('modal-delete-btn').classList.remove('hidden');
+    document.getElementById('item-modal').classList.remove('hidden');
+  }
+
+  function closeModal() {
+    document.getElementById('item-modal').classList.add('hidden');
+    editingId = null;
+  }
+
+  function handleModalBackdrop(e) {
+    if (e.target === document.getElementById('item-modal')) closeModal();
+  }
+
+  function saveItem() {
+    const name     = document.getElementById('item-name-input').value.trim();
+    const assignee = document.getElementById('item-assignee').value;
+    const errEl    = document.getElementById('modal-error');
+
+    if (!name) { errEl.textContent = 'アイテム名を入力してください'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+
+    if (editingId !== null) {
+      const item = state.packingList.find(i => i.id === editingId);
+      if (item) { item.name = name; item.assignee = assignee; }
+    } else {
+      state.packingList.push({ id: Date.now(), name, assignee, checked: false });
+    }
+
+    const wasEditing = editingId !== null;
+    closeModal();
+    renderPacking();
+    save();
+    showToast(wasEditing ? 'アイテムを更新しました' : 'アイテムを追加しました');
+  }
+
+  function deleteItemFromModal() {
+    if (editingId === null) return;
+    state.packingList = state.packingList.filter(i => i.id !== editingId);
+    closeModal();
+    renderPacking();
+    save();
+    showToast('アイテムを削除しました');
+  }
+
+  // ---- トースト ----
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // ---- 起動 ----
+  window.addEventListener('DOMContentLoaded', () => {
+    const rid = new URLSearchParams(location.search).get('room');
+    if (!rid) { location.href = 'index.html'; return; }
+    if (typeof firebase === 'undefined') { showErrMsg('ライブラリ読み込みエラー', 'Firebase JS の読み込みに失敗しました。'); return; }
+    const saved = loadFirebaseConfig();
+    if (!saved) { showOverlay('config'); return; }
+    try { db = initFirebaseApp(saved); loadRoom(rid); }
+    catch (err) { console.error(err); showConfigOverlay(); }
+  });
+</script>
+</body>
+</html>

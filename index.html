@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>旅行管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #4f7dff; --primary-dark: #3a63e0;
+    --grad-start: #4f7dff; --grad-end: #7c5cfc;
+    --danger: #ff5252; --bg: #f0f2f8; --card: #fff;
+    --text: #1a1a2e; --subtext: #6b7280;
+    --border: #e5e7eb; --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  body {
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ---- オーバーレイ ---- */
+  .overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  /* ---- 設定フォーム ---- */
+  .config-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 24px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+    width: 100%; max-width: 400px;
+    text-align: center;
+  }
+  .config-icon  { font-size: 60px; margin-bottom: 18px; }
+  .config-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .config-sub   { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 24px; }
+  .config-fields { text-align: left; margin-bottom: 16px; }
+  .cfg-group { margin-bottom: 10px; }
+  .cfg-label {
+    display: block; font-size: 11px; font-weight: 700;
+    color: var(--subtext); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .config-hint {
+    font-size: 11px; color: var(--subtext);
+    margin-top: 14px; line-height: 1.8; text-align: left;
+  }
+
+  /* ---- スピナー ---- */
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 18px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- フォーム共通 ---- */
+  input {
+    width: 100%; padding: 13px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px; color: var(--text);
+    background: white; outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none; appearance: none;
+  }
+  input:focus { border-color: var(--primary); }
+  .cfg-input { font-size: 13px; padding: 10px 12px; }
+
+  .btn {
+    padding: 12px 20px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; width: 100%;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:active { background: var(--primary-dark); }
+
+  /* ---- ヘッダー ---- */
+  header {
+    background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
+    color: white;
+    padding: 28px 16px 22px;
+    text-align: center;
+    position: relative;
+  }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+  header p  { font-size: 13px; opacity: 0.8; margin-top: 5px; }
+  .header-settings {
+    position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.2); border: none;
+    color: white; border-radius: 9px;
+    padding: 8px 11px; font-size: 16px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .header-settings:active { background: rgba(255,255,255,0.38); }
+
+  /* ---- メインコンテンツ ---- */
+  .content {
+    padding: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+    padding-bottom: 40px;
+  }
+
+  /* ---- 新規作成ボタン ---- */
+  .btn-create {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 18px;
+    background: var(--primary); color: white;
+    border: none; border-radius: 14px;
+    font-size: 17px; font-weight: 700; cursor: pointer;
+    margin: 16px 0 24px;
+    box-shadow: 0 4px 16px rgba(79,125,255,0.35);
+    transition: all 0.15s;
+  }
+  .btn-create:active { transform: scale(0.97); box-shadow: none; }
+  .btn-create-icon { font-size: 22px; }
+
+  /* ---- セクションタイトル ---- */
+  .section-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--subtext); text-transform: uppercase;
+    letter-spacing: 0.8px; margin-bottom: 10px;
+  }
+
+  /* ---- 旅行カード ---- */
+  .trip-card {
+    background: white; border-radius: 16px;
+    padding: 14px 16px; box-shadow: var(--shadow);
+    margin-bottom: 10px;
+    display: flex; align-items: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .trip-card:active { transform: scale(0.98); box-shadow: none; }
+  .trip-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--grad-start), var(--grad-end));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-right: 14px; flex-shrink: 0;
+  }
+
+  /* ---- テーマセレクター ---- */
+  .theme-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 6px;
+  }
+  .theme-btn {
+    border: 2px solid var(--border); border-radius: 12px; padding: 10px 4px;
+    background: white; cursor: pointer; text-align: center; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .theme-btn .th-emoji { font-size: 20px; }
+  .theme-btn .th-label { font-size: 10px; font-weight: 700; color: var(--subtext); }
+  .theme-btn:active { transform: scale(0.95); }
+  .theme-btn.selected { border-color: var(--theme-color); background: color-mix(in srgb, var(--theme-color) 10%, white); }
+  .theme-btn.selected .th-label { color: var(--theme-color); }
+  .trip-info { flex: 1; min-width: 0; }
+  .trip-name {
+    font-size: 16px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trip-date { font-size: 12px; color: var(--subtext); margin-top: 3px; }
+  .trip-last { font-size: 11px; color: var(--subtext); margin-top: 2px; }
+  .trip-actions { display: flex; align-items: center; gap: 6px; margin-left: 10px; flex-shrink: 0; }
+  .trip-share {
+    background: #f0f2f8; border: none; border-radius: 8px;
+    padding: 8px 10px; font-size: 14px; cursor: pointer;
+    color: var(--subtext); transition: all 0.15s;
+  }
+  .trip-share:active { background: #dde2ff; color: var(--primary); }
+  .trip-arrow { color: var(--subtext); font-size: 20px; }
+
+  /* ---- 旅行カード フィーチャー行 ---- */
+  .trip-card-top {
+    display: flex; align-items: center; cursor: pointer; padding-bottom: 12px;
+  }
+  .trip-feat-row {
+    display: flex; gap: 6px; padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .trip-feat-btn {
+    flex: 1; text-align: center; padding: 9px 4px;
+    background: #f8f9ff; border-radius: 10px;
+    font-size: 12px; font-weight: 600; color: var(--subtext);
+    text-decoration: none; transition: all 0.15s; display: block;
+  }
+  .trip-feat-btn:active { background: #dde2ff; color: var(--primary); }
+
+  /* ---- 空状態 ---- */
+  .empty-state {
+    text-align: center; padding: 50px 20px; color: var(--subtext);
+  }
+  .empty-state .icon { font-size: 64px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .empty-state p  { font-size: 14px; line-height: 1.8; }
+
+  /* ---- モーダル ---- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 500;
+    display: flex; align-items: flex-end;
+  }
+  .modal-sheet {
+    background: white; border-radius: 20px 20px 0 0;
+    padding: 24px 20px 40px;
+    width: 100%; max-height: 85vh; overflow-y: auto;
+    animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 22px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; }
+  .modal-close {
+    background: none; border: none; font-size: 22px;
+    color: var(--subtext); cursor: pointer; padding: 4px; line-height: 1;
+  }
+  .form-field  { margin-bottom: 14px; }
+  .form-label  {
+    display: block; font-size: 11px; font-weight: 700;
+    color: var(--subtext); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 5px;
+  }
+  .date-row   { display: flex; gap: 8px; align-items: center; }
+  .date-sep   { color: var(--subtext); flex-shrink: 0; font-size: 15px; }
+  .form-error { color: var(--danger); font-size: 13px; margin-bottom: 10px; display: none; }
+
+  /* ---- トースト ---- */
+  .toast {
+    position: fixed; bottom: 30px;
+    left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1a1a2e; color: white;
+    padding: 10px 22px; border-radius: 24px;
+    font-size: 13px; font-weight: 600;
+    opacity: 0; transition: all 0.3s;
+    pointer-events: none; white-space: nowrap; z-index: 600;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Firebase設定画面 -->
+<div id="overlay-config" class="overlay hidden">
+  <div class="config-card">
+    <div class="config-icon">🔥</div>
+    <div class="config-title">Firebase 設定</div>
+    <div class="config-sub">
+      Firebase コンソール →「プロジェクト設定」→「ウェブアプリ」の<br>firebaseConfig を入力してください
+    </div>
+    <div class="config-fields">
+      <div class="cfg-group">
+        <label class="cfg-label">apiKey <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-apiKey" class="cfg-input" type="text" placeholder="AIzaSy...">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">authDomain <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-authDomain" class="cfg-input" type="text" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">projectId <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-projectId" class="cfg-input" type="text" placeholder="your-project-id">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">appId <span style="color:var(--danger)">*</span></label>
+        <input id="cfg-appId" class="cfg-input" type="text" placeholder="1:123456789:web:abc123">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">storageBucket（省略可）</label>
+        <input id="cfg-storageBucket" class="cfg-input" type="text" placeholder="your-project.firebasestorage.app">
+      </div>
+      <div class="cfg-group">
+        <label class="cfg-label">messagingSenderId（省略可）</label>
+        <input id="cfg-messagingSenderId" class="cfg-input" type="text" placeholder="123456789012">
+      </div>
+    </div>
+    <div id="cfg-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;text-align:left;display:none"></div>
+    <button class="btn btn-primary" onclick="applyConfig()" style="font-size:16px;padding:15px">
+      保存して続ける
+    </button>
+    <div class="config-hint">
+      ※ Firestoreデータベースを作成し、セキュリティルールで読み書きを許可してください<br>
+      ※ 設定はこのブラウザのlocalStorageに保存されます（サーバーには送信されません）
+    </div>
+  </div>
+</div>
+
+<!-- ローディング -->
+<div id="overlay-loading" class="overlay hidden">
+  <div class="spinner"></div>
+  <div style="color:var(--subtext);font-size:14px;font-weight:600">作成中...</div>
+</div>
+
+<!-- メインコンテンツ -->
+<div id="main-content" class="hidden">
+  <header>
+    <h1>✈️ 旅行管理</h1>
+    <p>旅の思い出を一緒に記録しよう</p>
+    <button class="header-settings" onclick="showConfigOverlay()" title="Firebase設定">⚙️</button>
+  </header>
+  <div class="content">
+    <button class="btn-create" onclick="showCreateModal()">
+      <span class="btn-create-icon">＋</span>
+      新規旅行を作成
+    </button>
+    <div id="trip-list-section">
+      <div class="section-title">最近の旅行</div>
+      <div id="trip-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 旅行作成モーダル -->
+<div id="create-modal" class="modal-overlay hidden" onclick="handleCreateBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">新しい旅行を作成</span>
+      <button class="modal-close" onclick="hideCreateModal()">✕</button>
+    </div>
+    <div class="form-field">
+      <label class="form-label">旅行名 <span style="color:var(--danger)">*</span></label>
+      <input id="trip-name-input" type="text" placeholder="例：京都旅行、沖縄3泊4日" maxlength="30">
+    </div>
+    <div class="form-field">
+      <label class="form-label">日程（省略可）</label>
+      <div class="date-row">
+        <input id="trip-start-input" type="date" style="flex:1">
+        <span class="date-sep">〜</span>
+        <input id="trip-end-input" type="date" style="flex:1">
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">テーマカラー</label>
+      <div class="theme-grid" id="theme-grid"></div>
+    </div>
+    <div id="create-error" class="form-error"></div>
+    <button class="btn btn-primary" onclick="createTrip()" style="font-size:16px;padding:15px">
+      作成する
+    </button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  let db = null;
+  let selectedTheme = 'ocean';
+
+  function buildThemeGrid() {
+    const grid = document.getElementById('theme-grid');
+    if (!grid) return;
+    grid.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+      <button class="theme-btn${key === selectedTheme ? ' selected' : ''}"
+        style="--theme-color:${t.primary}"
+        onclick="selectTheme('${key}')">
+        <span class="th-emoji">${t.emoji}</span>
+        <span class="th-label">${t.label}</span>
+      </button>`).join('');
+  }
+
+  function selectTheme(key) {
+    selectedTheme = key;
+    buildThemeGrid();
+  }
+
+  // ---- 画面切替 ----
+  function showOverlay(name) {
+    document.getElementById('overlay-config').classList.toggle('hidden', name !== 'config');
+    document.getElementById('overlay-loading').classList.toggle('hidden', name !== 'loading');
+    document.getElementById('main-content').classList.toggle('hidden', name !== 'main');
+  }
+
+  function showConfigOverlay() {
+    const saved = loadFirebaseConfig();
+    if (saved) {
+      document.getElementById('cfg-apiKey').value            = saved.apiKey            || '';
+      document.getElementById('cfg-authDomain').value        = saved.authDomain        || '';
+      document.getElementById('cfg-projectId').value         = saved.projectId         || '';
+      document.getElementById('cfg-appId').value             = saved.appId             || '';
+      document.getElementById('cfg-storageBucket').value     = saved.storageBucket     || '';
+      document.getElementById('cfg-messagingSenderId').value = saved.messagingSenderId || '';
+    }
+    document.getElementById('cfg-error').style.display = 'none';
+    showOverlay('config');
+  }
+
+  function applyConfig() {
+    const apiKey            = document.getElementById('cfg-apiKey').value.trim();
+    const authDomain        = document.getElementById('cfg-authDomain').value.trim();
+    const projectId         = document.getElementById('cfg-projectId').value.trim();
+    const appId             = document.getElementById('cfg-appId').value.trim();
+    const storageBucket     = document.getElementById('cfg-storageBucket').value.trim();
+    const messagingSenderId = document.getElementById('cfg-messagingSenderId').value.trim();
+
+    const errEl = document.getElementById('cfg-error');
+    if (!apiKey || !authDomain || !projectId || !appId) {
+      errEl.textContent = '必須項目（apiKey, authDomain, projectId, appId）を入力してください';
+      errEl.style.display = 'block';
+      return;
+    }
+    const cfg = { apiKey, authDomain, projectId, appId };
+    if (storageBucket)     cfg.storageBucket     = storageBucket;
+    if (messagingSenderId) cfg.messagingSenderId = messagingSenderId;
+
+    try {
+      if (firebase.apps.length > 0) {
+        saveFirebaseConfig(cfg);
+        location.reload();
+        return;
+      }
+      db = initFirebaseApp(cfg);
+      saveFirebaseConfig(cfg);
+      errEl.style.display = 'none';
+      showMain();
+    } catch (err) {
+      errEl.textContent = err.message || 'Firebase初期化に失敗しました';
+      errEl.style.display = 'block';
+    }
+  }
+
+  // ---- メイン画面 ----
+  function showMain() {
+    showOverlay('main');
+    renderTripList();
+  }
+
+  function renderTripList() {
+    const trips   = loadTrips();
+    const list    = document.getElementById('trip-list');
+    const section = document.getElementById('trip-list-section');
+
+    if (trips.length === 0) {
+      section.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+    section.style.display = 'block';
+    list.innerHTML = trips.map(trip => {
+      const id      = esc(trip.id);
+      const dateStr = formatTripDate(trip.startDate, trip.endDate);
+      const th      = THEMES[trip.theme] || THEMES.ocean;
+      const iconBg  = `linear-gradient(135deg,${th.g1},${th.g2})`;
+      return `
+        <div class="trip-card">
+          <div class="trip-card-top" onclick="goToTrip('${id}')">
+            <div class="trip-icon" style="background:${iconBg}">✈️</div>
+            <div class="trip-info">
+              <div class="trip-name">${esc(trip.name || '旅行')}</div>
+              ${dateStr ? `<div class="trip-date">📅 ${esc(dateStr)}</div>` : ''}
+              <div class="trip-last">${formatRelativeDate(trip.lastAccess)}</div>
+            </div>
+            <div class="trip-actions">
+              <button class="trip-share" onclick="shareTrip(event,'${id}')" title="共有リンクをコピー">🔗</button>
+              <span class="trip-arrow">›</span>
+            </div>
+          </div>
+          <div class="trip-feat-row">
+            <a href="itinerary.html?room=${id}" class="trip-feat-btn">📅 旅程</a>
+            <a href="warikan.html?room=${id}"   class="trip-feat-btn">💰 割り勘</a>
+            <a href="packing.html?room=${id}"   class="trip-feat-btn">🎒 持ち物</a>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function goToTrip(id) {
+    location.href = 'warikan.html?room=' + id;
+  }
+
+  async function shareTrip(event, id) {
+    event.stopPropagation();
+    const base = location.href.replace(/[^/]*(\?.*)?$/, '');
+    const url  = base + 'warikan.html?room=' + id;
+    try { await navigator.clipboard.writeText(url); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.cssText = 'position:fixed;top:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+    }
+    showToast('共有URLをコピーしました');
+  }
+
+  // ---- 旅行作成 ----
+  function showCreateModal() {
+    document.getElementById('trip-name-input').value  = '';
+    document.getElementById('trip-start-input').value = '';
+    document.getElementById('trip-end-input').value   = '';
+    document.getElementById('create-error').style.display = 'none';
+    selectedTheme = 'ocean';
+    buildThemeGrid();
+    document.getElementById('create-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('trip-name-input').focus(), 120);
+  }
+
+  function hideCreateModal() {
+    document.getElementById('create-modal').classList.add('hidden');
+  }
+
+  function handleCreateBackdrop(e) {
+    if (e.target === document.getElementById('create-modal')) hideCreateModal();
+  }
+
+  async function createTrip() {
+    const name      = document.getElementById('trip-name-input').value.trim();
+    const startDate = document.getElementById('trip-start-input').value;
+    const endDate   = document.getElementById('trip-end-input').value;
+
+    const errEl = document.getElementById('create-error');
+    if (!name) {
+      errEl.textContent = '旅行名を入力してください';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    hideCreateModal();
+    showOverlay('loading');
+
+    try {
+      const ref = await db.collection('rooms').add({
+        name, theme: selectedTheme,
+        startDate: startDate || '',
+        endDate:   endDate   || '',
+        members:  [], expenses: []
+      });
+      saveTrip({ id: ref.id, name, theme: selectedTheme, startDate: startDate || '', endDate: endDate || '' });
+      location.href = 'warikan.html?room=' + ref.id;
+    } catch (err) {
+      console.error('createTrip error:', err);
+      showOverlay('main');
+      showToast('旅行の作成に失敗しました: ' + (err.message || ''));
+    }
+  }
+
+  // ---- トースト ----
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ---- キーボード ----
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideCreateModal();
+    if (e.key === 'Enter' && !document.getElementById('create-modal').classList.contains('hidden')) {
+      const active = document.activeElement;
+      if (active.id !== 'trip-start-input' && active.id !== 'trip-end-input') createTrip();
+    }
+  });
+
+  // ---- 起動 ----
+  window.addEventListener('DOMContentLoaded', () => {
+    // ?room=XXX が付いていたら直接 warikan.html へ
+    const roomId = new URLSearchParams(location.search).get('room');
+    if (roomId) { location.href = 'warikan.html?room=' + roomId; return; }
+
+    if (typeof firebase === 'undefined') {
+      alert('Firebase JS の読み込みに失敗しました。ネットワーク接続を確認してください。');
+      return;
+    }
+    const saved = loadFirebaseConfig();
+    if (!saved) { showOverlay('config'); return; }
+    try {
+      db = initFirebaseApp(saved);
+      showMain();
+    } catch (err) {
+      console.error('Firebase init error:', err);
+      showOverlay('config');
+    }
+  });
+</script>
+</body>
+</html>

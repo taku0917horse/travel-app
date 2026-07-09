@@ -3,30 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>旅行割り勘</title>
+<title>割り勘</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --primary: #4f7dff;
-    --primary-dark: #3a63e0;
-    --danger: #ff5252;
-    --success: #4caf50;
-    --bg: #f0f2f8;
-    --card: #ffffff;
-    --text: #1a1a2e;
-    --subtext: #6b7280;
-    --border: #e5e7eb;
-    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --primary: #4f7dff; --primary-dark: #3a63e0;
+    --grad-start: #4f7dff; --grad-end: #7c5cfc;
+    --danger: #ff5252; --success: #4caf50;
+    --bg: #f0f2f8; --card: #ffffff;
+    --text: #1a1a2e; --subtext: #6b7280;
+    --border: #e5e7eb; --shadow: 0 2px 16px rgba(0,0,0,0.07);
   }
-
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
+    font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
     padding-bottom: 80px;
   }
 
@@ -34,29 +30,21 @@
 
   /* ---- オーバーレイ ---- */
   .overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--bg);
-    z-index: 300;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    overflow-y: auto;
+    position: fixed; inset: 0;
+    background: var(--bg); z-index: 300;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 24px; overflow-y: auto;
   }
   .overlay-card {
-    background: white;
-    border-radius: 20px;
+    background: white; border-radius: 20px;
     padding: 36px 24px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-    text-align: center;
-    width: 100%;
-    max-width: 360px;
+    text-align: center; width: 100%; max-width: 360px;
   }
-  .overlay-icon { font-size: 60px; margin-bottom: 18px; }
+  .overlay-icon  { font-size: 60px; margin-bottom: 18px; }
   .overlay-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-  .overlay-sub { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
+  .overlay-sub   { font-size: 14px; color: var(--subtext); line-height: 1.7; margin-bottom: 28px; }
   .spinner {
     width: 48px; height: 48px;
     border: 4px solid var(--border);
@@ -69,99 +57,82 @@
 
   /* ---- 設定フォーム ---- */
   .config-card {
-    background: white;
-    border-radius: 20px;
+    background: white; border-radius: 20px;
     padding: 32px 24px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-    width: 100%;
-    max-width: 400px;
-    text-align: center;
+    width: 100%; max-width: 400px; text-align: center;
   }
   .config-fields { text-align: left; margin: 4px 0 16px; }
-  .cfg-group { margin-bottom: 10px; }
-  .cfg-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
-  .config-fields input { margin-bottom: 0; font-size: 13px; padding: 10px 12px; }
-  .cfg-error { color: var(--danger); font-size: 12px; margin-bottom: 10px; display: none; text-align: left; }
-  .config-hint { font-size: 11px; color: var(--subtext); margin-top: 14px; line-height: 1.8; text-align: left; }
+  .cfg-group  { margin-bottom: 10px; }
+  .cfg-label  {
+    font-size: 11px; color: var(--subtext); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 4px; display: block;
+  }
+  .config-hint {
+    font-size: 11px; color: var(--subtext);
+    margin-top: 14px; line-height: 1.8; text-align: left;
+  }
   .btn-outline {
     background: transparent; color: var(--subtext);
     border: 1.5px solid var(--border);
     font-size: 13px; padding: 9px 16px; margin-top: 10px;
   }
 
-  /* ---- 最近のルーム ---- */
-  .recent-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0 14px; }
-  .recent-title { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; text-align: left; }
-  .recent-item {
-    display: flex; align-items: center;
-    padding: 11px 13px; background: #f8f9ff;
-    border-radius: 12px; margin-bottom: 6px;
-    cursor: pointer; border: 1.5px solid transparent;
-    transition: border-color 0.15s, background 0.15s;
-    text-align: left;
-  }
-  .recent-item:active { border-color: var(--primary); background: #edf1ff; }
-  .recent-info { flex: 1; min-width: 0; }
-  .recent-members { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .recent-date { font-size: 11px; color: var(--subtext); margin-top: 2px; }
-  .recent-arrow { color: var(--primary); font-size: 20px; margin-left: 8px; flex-shrink: 0; }
-
   /* ---- ヘッダー ---- */
   header {
-    background: linear-gradient(135deg, #4f7dff 0%, #7c5cfc 100%);
+    background: linear-gradient(135deg, var(--grad-start) 0%, var(--grad-end) 100%);
     color: white;
-    padding: 20px 16px 14px;
-    text-align: center;
+    padding: 14px 16px 12px;
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
-  header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
-  .header-room { font-size: 11px; opacity: 0.75; margin-top: 3px; font-family: monospace; letter-spacing: 1px; }
-
-  .share-btn {
-    position: absolute;
-    right: 14px; top: 50%;
-    transform: translateY(-50%);
-    background: rgba(255,255,255,0.22);
-    color: white; border: none;
-    border-radius: 9px; padding: 7px 13px;
-    font-size: 13px; font-weight: 700;
-    cursor: pointer; transition: background 0.15s;
+  .header-back {
+    background: rgba(255,255,255,0.18); border: none;
+    color: white; border-radius: 9px;
+    padding: 7px 12px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s; text-decoration: none;
+    display: flex; align-items: center; gap: 4px;
   }
-  .share-btn:active { background: rgba(255,255,255,0.38); }
-
-  .header-left {
-    position: absolute;
-    left: 14px; top: 50%;
-    transform: translateY(-50%);
-    display: flex; align-items: center; gap: 7px;
+  .header-back:active { background: rgba(255,255,255,0.35); }
+  .header-center { flex: 1; text-align: center; min-width: 0; }
+  .header-title {
+    font-size: 17px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .header-date { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .rt-dot {
-    width: 9px; height: 9px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.3);
-    transition: background 0.3s;
-    flex-shrink: 0;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,0.3); transition: background 0.3s; flex-shrink: 0;
   }
   .rt-dot.connected  { background: #69f0ae; }
   .rt-dot.connecting { background: #ffd740; animation: blink 1s ease-in-out infinite; }
-  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+  .share-btn {
+    background: rgba(255,255,255,0.22); border: none;
+    color: white; border-radius: 9px;
+    padding: 7px 13px; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .share-btn:active { background: rgba(255,255,255,0.38); }
   .settings-btn {
     background: none; border: none;
-    color: rgba(255,255,255,0.65);
-    font-size: 15px; cursor: pointer;
-    padding: 2px 3px; line-height: 1;
+    color: rgba(255,255,255,0.65); font-size: 15px;
+    cursor: pointer; padding: 2px 3px; line-height: 1;
   }
   .settings-btn:hover { color: white; }
 
   /* ---- タブナビ ---- */
   nav {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: white;
-    display: flex;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; display: flex;
     border-top: 1px solid var(--border);
-    z-index: 100;
-    box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+    z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
   }
   nav button {
     flex: 1; background: none; border: none;
@@ -204,14 +175,23 @@
   .btn:active { transform: scale(0.96); }
   .btn-primary { background: var(--primary); color: white; }
   .btn-primary:active { background: var(--primary-dark); }
-  .btn-full { width: 100%; }
+  .btn-full   { width: 100%; }
   .btn-danger { background: #fff0f0; color: var(--danger); font-size: 13px; padding: 6px 12px; border-radius: 8px; }
 
   /* ---- メンバー ---- */
-  .member-chip { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f8f9ff; border-radius: 10px; margin-bottom: 6px; }
+  .member-chip {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: #f8f9ff;
+    border-radius: 10px; margin-bottom: 6px;
+  }
   .member-chip .name { font-size: 15px; font-weight: 600; }
   .member-chip .paid { font-size: 12px; color: var(--subtext); margin-top: 1px; }
-  .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; margin-right: 10px; flex-shrink: 0; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: white;
+    margin-right: 10px; flex-shrink: 0;
+  }
   .chip-left { display: flex; align-items: center; }
 
   /* ---- 支出 ---- */
@@ -221,9 +201,9 @@
     cursor: pointer; transition: background 0.15s;
   }
   .expense-item:active { background: #e8edff; }
-  .expense-info { flex: 1; }
-  .expense-desc { font-size: 15px; font-weight: 600; }
-  .expense-meta { font-size: 12px; color: var(--subtext); margin-top: 2px; }
+  .expense-info  { flex: 1; }
+  .expense-desc  { font-size: 15px; font-weight: 600; }
+  .expense-meta  { font-size: 12px; color: var(--subtext); margin-top: 2px; }
   .expense-splits { font-size: 11px; color: var(--subtext); margin-top: 3px; line-height: 1.6; }
   .expense-amount { font-size: 18px; font-weight: 700; color: var(--primary); margin: 0 8px 0 12px; }
   .expense-chevron { color: var(--subtext); font-size: 18px; flex-shrink: 0; }
@@ -232,25 +212,37 @@
   .split-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--subtext); cursor: pointer; margin-top: 8px; }
   .split-toggle input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
   .split-section { margin-top: 10px; padding: 12px; background: #f8f9ff; border-radius: 10px; }
-  .split-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .split-name { font-size: 14px; font-weight: 600; min-width: 56px; flex-shrink: 0; }
+  .split-row     { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .split-name    { font-size: 14px; font-weight: 600; min-width: 56px; flex-shrink: 0; }
   .split-row input { padding: 8px 10px; font-size: 14px; }
-  .split-hint { font-size: 11px; color: var(--subtext); margin-bottom: 6px; }
-  .split-total-bar { font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-top: 4px; text-align: center; background: #e8f5e9; color: var(--success); }
+  .split-hint    { font-size: 11px; color: var(--subtext); margin-bottom: 6px; }
+  .split-total-bar {
+    font-size: 12px; font-weight: 600; padding: 6px 10px;
+    border-radius: 8px; margin-top: 4px; text-align: center;
+    background: #e8f5e9; color: var(--success);
+  }
   .split-total-bar.ng { background: #ffeaea; color: var(--danger); }
 
   /* ---- 精算 ---- */
-  .settlement-row { display: flex; align-items: center; gap: 8px; padding: 14px; background: #f8f9ff; border-radius: 12px; margin-bottom: 8px; }
-  .settlement-row .from { font-weight: 700; font-size: 15px; }
-  .settlement-row .arrow { color: var(--primary); font-size: 18px; }
-  .settlement-row .to { font-weight: 700; font-size: 15px; }
+  .settlement-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px; background: #f8f9ff;
+    border-radius: 12px; margin-bottom: 8px;
+  }
+  .settlement-row .from   { font-weight: 700; font-size: 15px; }
+  .settlement-row .arrow  { color: var(--primary); font-size: 18px; }
+  .settlement-row .to     { font-weight: 700; font-size: 15px; }
   .settlement-row .amount { margin-left: auto; font-size: 17px; font-weight: 700; color: var(--primary); }
 
   .summary-box { background: #f8f9ff; border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 12px; }
   .summary-box .label { font-size: 11px; color: var(--subtext); margin-bottom: 4px; }
   .summary-box .value { font-size: 20px; font-weight: 700; color: var(--text); }
 
-  .balance-bar { padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .balance-bar {
+    padding: 10px 12px; border-radius: 10px;
+    margin-bottom: 6px; display: flex;
+    align-items: center; justify-content: space-between;
+  }
   .balance-bar.positive { background: #e8f5e9; }
   .balance-bar.negative { background: #ffeaea; }
   .balance-bar.zero     { background: #f3f4f6; }
@@ -263,29 +255,55 @@
   .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
   .empty-state p { font-size: 14px; }
 
-  .badge { display: inline-block; background: var(--primary); color: white; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+  .badge {
+    display: inline-block; background: var(--primary); color: white;
+    font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 20px; margin-left: 6px; vertical-align: middle;
+  }
 
-  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1a1a2e; color: white; padding: 10px 20px; border-radius: 24px; font-size: 13px; font-weight: 600; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; z-index: 400; }
+  .toast {
+    position: fixed; bottom: 90px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1a1a2e; color: white;
+    padding: 10px 20px; border-radius: 24px;
+    font-size: 13px; font-weight: 600;
+    opacity: 0; transition: all 0.3s; pointer-events: none;
+    white-space: nowrap; z-index: 400;
+  }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  .all-settled { text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-radius: 16px; }
+  .all-settled {
+    text-align: center; padding: 30px 20px;
+    background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+    border-radius: 16px;
+  }
   .all-settled .icon { font-size: 56px; margin-bottom: 10px; }
   .all-settled p { font-size: 16px; font-weight: 700; color: var(--success); }
+
+  /* ---- フィーチャーナビ ---- */
+  .feature-nav {
+    background: white; display: flex; border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 50;
+  }
+  .feature-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px 8px; border-bottom: 2px solid transparent;
+    text-decoration: none; color: var(--subtext); font-size: 10px; font-weight: 600;
+    transition: all 0.2s; gap: 2px;
+  }
+  .feature-tab .ft-icon { font-size: 18px; }
+  .feature-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
   /* ---- 支出編集モーダル ---- */
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.45);
-    z-index: 500;
-    display: flex; align-items: flex-end;
+    z-index: 500; display: flex; align-items: flex-end;
   }
   .modal-sheet {
-    background: white;
-    border-radius: 20px 20px 0 0;
+    background: white; border-radius: 20px 20px 0 0;
     padding: 22px 20px 36px;
-    width: 100%;
-    max-height: 85vh;
-    overflow-y: auto;
+    width: 100%; max-height: 85vh; overflow-y: auto;
     animation: slideUp 0.22s ease;
   }
   @keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
@@ -298,15 +316,19 @@
     background: none; border: none; font-size: 22px;
     color: var(--subtext); cursor: pointer; padding: 4px; line-height: 1;
   }
-  .modal-field { margin-bottom: 10px; }
-  .modal-label { font-size: 11px; color: var(--subtext); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
+  .modal-field  { margin-bottom: 10px; }
+  .modal-label  {
+    font-size: 11px; color: var(--subtext); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 4px; display: block;
+  }
   .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
   .modal-del-btn {
     flex: 1; padding: 13px 0; border: none; border-radius: 10px;
     background: #fff0f0; color: var(--danger); font-size: 15px;
     font-weight: 600; cursor: pointer; transition: all 0.15s;
   }
-  .modal-del-btn:active { transform: scale(0.96); }
+  .modal-del-btn:active  { transform: scale(0.96); }
   .modal-save-btn {
     flex: 2; padding: 13px 0; border: none; border-radius: 10px;
     background: var(--primary); color: white; font-size: 15px;
@@ -315,8 +337,7 @@
   .modal-save-btn:active { background: var(--primary-dark); transform: scale(0.96); }
   .split-reset-note {
     font-size: 11px; color: var(--subtext); background: #fffbe6;
-    border-radius: 8px; padding: 7px 10px; margin-top: 6px;
-    display: none;
+    border-radius: 8px; padding: 7px 10px; margin-top: 6px; display: none;
   }
 </style>
 </head>
@@ -333,54 +354,37 @@
     <div class="config-fields">
       <div class="cfg-group">
         <label class="cfg-label">apiKey <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-apiKey" type="text" placeholder="AIzaSy...">
+        <input id="cfg-apiKey" type="text" placeholder="AIzaSy..." style="font-size:13px;padding:10px 12px">
       </div>
       <div class="cfg-group">
         <label class="cfg-label">authDomain <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com">
+        <input id="cfg-authDomain" type="text" placeholder="your-project.firebaseapp.com" style="font-size:13px;padding:10px 12px">
       </div>
       <div class="cfg-group">
         <label class="cfg-label">projectId <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-projectId" type="text" placeholder="your-project-id">
+        <input id="cfg-projectId" type="text" placeholder="your-project-id" style="font-size:13px;padding:10px 12px">
       </div>
       <div class="cfg-group">
         <label class="cfg-label">appId <span style="color:var(--danger)">*</span></label>
-        <input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123">
+        <input id="cfg-appId" type="text" placeholder="1:123456789:web:abc123" style="font-size:13px;padding:10px 12px">
       </div>
       <div class="cfg-group">
         <label class="cfg-label">storageBucket（省略可）</label>
-        <input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app">
+        <input id="cfg-storageBucket" type="text" placeholder="your-project.firebasestorage.app" style="font-size:13px;padding:10px 12px">
       </div>
       <div class="cfg-group">
         <label class="cfg-label">messagingSenderId（省略可）</label>
-        <input id="cfg-messagingSenderId" type="text" placeholder="123456789012">
+        <input id="cfg-messagingSenderId" type="text" placeholder="123456789012" style="font-size:13px;padding:10px 12px">
       </div>
     </div>
-    <div id="cfg-error" class="cfg-error"></div>
+    <div id="cfg-error" style="color:var(--danger);font-size:12px;margin-bottom:10px;display:none;text-align:left"></div>
     <button class="btn btn-primary btn-full" onclick="applyConfig()" style="font-size:16px;padding:15px">
       保存して続ける
     </button>
     <div class="config-hint">
-      ※ Firestore データベースを作成し、セキュリティルールで読み書きを許可してください<br>
-      ※ 設定はこのブラウザの localStorage に保存されます（サーバーには送信されません）
+      ※ Firestoreデータベースを作成し、セキュリティルールで読み書きを許可してください<br>
+      ※ 設定はこのブラウザのlocalStorageに保存されます（サーバーには送信されません）
     </div>
-  </div>
-</div>
-
-<!-- ウェルカム画面 -->
-<div id="overlay-welcome" class="overlay hidden">
-  <div class="overlay-card">
-    <div class="overlay-icon">✈️</div>
-    <div class="overlay-title">旅行割り勘</div>
-    <div class="overlay-sub">ルームを作成してURLを共有すれば<br>みんなでリアルタイムに入力できます</div>
-    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px">
-      ＋ 新しいルームを作成
-    </button>
-    <button class="btn btn-outline btn-full" onclick="showConfigOverlay()" style="margin-top:10px">
-      ⚙️ Firebase設定を変更
-    </button>
-    <!-- 最近訪れたルーム -->
-    <div id="recent-rooms-section"></div>
   </div>
 </div>
 
@@ -395,10 +399,12 @@
   <div class="overlay-card">
     <div class="overlay-icon">😕</div>
     <div class="overlay-title" id="error-title">エラーが発生しました</div>
-    <div class="overlay-sub" id="error-detail" style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
-    <button class="btn btn-primary btn-full" onclick="createRoom()" style="font-size:16px;padding:15px;margin-bottom:8px">
-      新しいルームを作成
-    </button>
+    <div class="overlay-sub" id="error-detail"
+      style="word-break:break-all;font-size:12px;background:#f8f9ff;border-radius:8px;padding:10px;text-align:left;margin-bottom:20px;color:#374151"></div>
+    <a href="index.html" class="btn btn-primary btn-full"
+      style="font-size:16px;padding:15px;margin-bottom:8px;display:block;text-align:center;text-decoration:none">
+      ← トップに戻る
+    </a>
     <button class="btn btn-outline btn-full" onclick="showConfigOverlay()">
       ⚙️ Firebase設定を変更
     </button>
@@ -409,14 +415,19 @@
 <div id="app-shell" class="hidden">
 
 <header>
-  <div class="header-left">
-    <div id="rt-dot" class="rt-dot connecting"></div>
-    <button class="settings-btn" onclick="resetConfig()" title="Firebase設定を変更">⚙️</button>
+  <a href="index.html" class="header-back">← 戻る</a>
+  <div class="header-center">
+    <div id="header-title" class="header-title">読み込み中...</div>
+    <div id="header-date" class="header-date"></div>
   </div>
-  <h1>✈️ 旅行割り勘</h1>
-  <div id="header-room" class="header-room"></div>
-  <button class="share-btn" onclick="shareRoom()">🔗 共有</button>
+  <div class="header-right">
+    <div id="rt-dot" class="rt-dot connecting"></div>
+    <button class="settings-btn" onclick="showConfigOverlay()" title="Firebase設定を変更">⚙️</button>
+    <button class="share-btn" onclick="shareRoom()">🔗 共有</button>
+  </div>
 </header>
+
+<nav class="feature-nav" id="feature-nav"></nav>
 
 <div id="page-members" class="page active">
   <div class="card">
@@ -514,38 +525,22 @@
 <div id="toast" class="toast"></div>
 
 <script>
-  const CONFIG_KEY = 'warikan_firebase_config';
-  const RECENT_KEY = 'warikan_recent_rooms';
-  const RECENT_MAX = 5;
-  const COLORS = ['#4f7dff','#7c5cfc','#ff7043','#26c6da','#66bb6a','#ffa726','#ef5350','#ab47bc'];
-
-  let roomId          = null;
-  let state           = { members: [], expenses: [] };
-  let db              = null;
-  let unsubscribeRoom = null;
+  let roomId           = null;
+  let state            = { name: '', startDate: '', endDate: '', members: [], expenses: [] };
+  let db               = null;
+  let unsubscribeRoom  = null;
   let editingExpenseId = null;
 
-  // ---- Firebase設定管理 ----
-  function loadConfigFromStorage() {
-    try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
-  }
-  function saveConfigToStorage(cfg) {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-  }
-  function initFirebase(cfg) {
-    if (firebase.apps.length === 0) firebase.initializeApp(cfg);
-    db = firebase.firestore();
-  }
-
+  // ---- Firebase設定 ----
   function showConfigOverlay() {
-    const saved = loadConfigFromStorage();
+    const saved = loadFirebaseConfig();
     if (saved) {
-      document.getElementById('cfg-apiKey').value             = saved.apiKey || '';
-      document.getElementById('cfg-authDomain').value         = saved.authDomain || '';
-      document.getElementById('cfg-projectId').value          = saved.projectId || '';
-      document.getElementById('cfg-appId').value              = saved.appId || '';
-      document.getElementById('cfg-storageBucket').value      = saved.storageBucket || '';
-      document.getElementById('cfg-messagingSenderId').value  = saved.messagingSenderId || '';
+      document.getElementById('cfg-apiKey').value            = saved.apiKey            || '';
+      document.getElementById('cfg-authDomain').value        = saved.authDomain        || '';
+      document.getElementById('cfg-projectId').value         = saved.projectId         || '';
+      document.getElementById('cfg-appId').value             = saved.appId             || '';
+      document.getElementById('cfg-storageBucket').value     = saved.storageBucket     || '';
+      document.getElementById('cfg-messagingSenderId').value = saved.messagingSenderId || '';
     }
     document.getElementById('cfg-error').style.display = 'none';
     showOverlay('config');
@@ -571,16 +566,16 @@
 
     try {
       if (firebase.apps.length > 0) {
-        saveConfigToStorage(cfg);
+        saveFirebaseConfig(cfg);
         location.reload();
         return;
       }
-      initFirebase(cfg);
-      saveConfigToStorage(cfg);
+      db = initFirebaseApp(cfg);
+      saveFirebaseConfig(cfg);
       errEl.style.display = 'none';
       const urlRoomId = new URLSearchParams(location.search).get('room');
       if (urlRoomId) loadRoom(urlRoomId);
-      else showOverlay('welcome');
+      else location.href = 'index.html';
     } catch (err) {
       errEl.textContent = err.message || 'Firebase初期化に失敗しました';
       errEl.style.display = 'block';
@@ -590,8 +585,7 @@
   async function resetConfig() {
     if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
     roomId = null;
-    state  = { members: [], expenses: [] };
-    history.pushState(null, '', location.pathname);
+    state  = { name: '', startDate: '', endDate: '', members: [], expenses: [] };
     db = null;
     if (firebase.apps.length > 0) {
       await Promise.all(firebase.apps.map(a => a.delete()));
@@ -599,56 +593,12 @@
     showConfigOverlay();
   }
 
-  // ---- 最近訪れたルーム ----
-  function saveRecentRoom(id, members) {
-    const rooms = loadRecentRooms().filter(r => r.id !== id);
-    rooms.unshift({ id, members: [...members], lastAccess: new Date().toISOString() });
-    localStorage.setItem(RECENT_KEY, JSON.stringify(rooms.slice(0, RECENT_MAX)));
-  }
-
-  function loadRecentRooms() {
-    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; }
-  }
-
-  function renderRecentRooms() {
-    const rooms = loadRecentRooms();
-    const section = document.getElementById('recent-rooms-section');
-    if (!rooms.length) { section.innerHTML = ''; return; }
-    const items = rooms.map(r => {
-      const names = r.members.length
-        ? esc(r.members.slice(0, 3).join('・')) + (r.members.length > 3 ? ` 他${r.members.length - 3}名` : '')
-        : 'メンバー未登録';
-      return `<div class="recent-item" onclick="loadRoom('${r.id}')">
-        <div class="recent-info">
-          <div class="recent-members">${names}</div>
-          <div class="recent-date">${formatRelativeDate(r.lastAccess)}</div>
-        </div>
-        <div class="recent-arrow">›</div>
-      </div>`;
-    }).join('');
-    section.innerHTML = `<hr class="recent-divider"><div class="recent-title">最近訪れたルーム</div>${items}`;
-  }
-
-  function formatRelativeDate(isoStr) {
-    const diff = Date.now() - new Date(isoStr).getTime();
-    const mins  = Math.floor(diff / 60000);
-    if (mins < 1)  return 'たった今';
-    if (mins < 60) return `${mins}分前`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24)  return `${hrs}時間前`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7)  return `${days}日前`;
-    const d = new Date(isoStr);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  }
-
   // ---- オーバーレイ ----
   function showOverlay(name) {
-    ['config','welcome','loading','error'].forEach(n =>
-      document.getElementById('overlay-' + n).classList.toggle('hidden', n !== name)
-    );
-    document.getElementById('app-shell').classList.add('hidden');
-    if (name === 'welcome') renderRecentRooms();
+    document.getElementById('overlay-config').classList.toggle('hidden',  name !== 'config');
+    document.getElementById('overlay-loading').classList.toggle('hidden', name !== 'loading');
+    document.getElementById('overlay-error').classList.toggle('hidden',   name !== 'error');
+    document.getElementById('app-shell').classList.toggle('hidden',       name !== 'app');
   }
 
   function showErrMsg(title, detail) {
@@ -657,53 +607,68 @@
     showOverlay('error');
   }
 
-  function showApp() {
-    ['config','welcome','loading','error'].forEach(n =>
-      document.getElementById('overlay-' + n).classList.add('hidden')
-    );
-    document.getElementById('app-shell').classList.remove('hidden');
-  }
-
-  // ---- ルーム ----
-  async function createRoom() {
-    showOverlay('loading');
-    try {
-      const ref = await db.collection('rooms').add({ members: [], expenses: [] });
-      roomId = ref.id;
-      state  = { members: [], expenses: [] };
-      history.pushState(null, '', '?room=' + roomId);
-      document.getElementById('header-room').textContent = 'Room: ' + roomId;
-      saveRecentRoom(roomId, []);
-      subscribeToRoom(roomId);
-      showApp();
-      renderAll();
-    } catch (err) {
-      console.error('createRoom error:', err);
-      showErrMsg('ルームの作成に失敗しました',
-        err.message + '\n\nFirestoreのセキュリティルールで書き込みが許可されているか確認してください。');
-    }
-  }
-
+  // ---- ルーム読み込み ----
   async function loadRoom(id) {
     showOverlay('loading');
     try {
       const docSnap = await db.collection('rooms').doc(id).get();
       if (!docSnap.exists) {
-        showErrMsg('ルームが見つかりません', 'このルームは存在しないか、URLが正しくありません。');
+        showErrMsg('旅行が見つかりません', 'このルームは存在しないか、URLが正しくありません。');
         return;
       }
       const data = docSnap.data();
       roomId = id;
-      state  = { members: data.members || [], expenses: data.expenses || [] };
-      document.getElementById('header-room').textContent = 'Room: ' + id;
-      saveRecentRoom(roomId, state.members);
+      state  = {
+        name:      data.name      || '旅行',
+        startDate: data.startDate || '',
+        endDate:   data.endDate   || '',
+        members:   data.members   || [],
+        expenses:  data.expenses  || []
+      };
+      applyTheme(data.theme || 'ocean');
+      updateHeaderInfo();
+      buildFeatureNav();
+      persistTrip();
       subscribeToRoom(id);
-      showApp();
+      showOverlay('app');
       renderAll();
     } catch (err) {
       console.error('loadRoom error:', err);
       showErrMsg('予期しないエラー', err.message || String(err));
     }
+  }
+
+  function updateHeaderInfo() {
+    document.getElementById('header-title').textContent = state.name || '旅行';
+    const dateStr = formatTripDate(state.startDate, state.endDate);
+    const dateEl  = document.getElementById('header-date');
+    dateEl.textContent = dateStr ? `📅 ${dateStr}` : '';
+    document.title = state.name ? `${state.name} - 割り勘` : '割り勘';
+  }
+
+  // ---- フィーチャーナビ ----
+  function buildFeatureNav() {
+    const rid = roomId || new URLSearchParams(location.search).get('room');
+    if (!rid) return;
+    const tabs = [
+      { id: 'itinerary', icon: '📅', label: '旅程',    href: `itinerary.html?room=${rid}` },
+      { id: 'warikan',   icon: '💰', label: '割り勘',  href: `warikan.html?room=${rid}`   },
+      { id: 'packing',   icon: '🎒', label: '持ち物',  href: `packing.html?room=${rid}`   },
+    ];
+    document.getElementById('feature-nav').innerHTML = tabs.map(t =>
+      `<a href="${t.href}" class="feature-tab${t.id === 'warikan' ? ' active' : ''}">
+        <span class="ft-icon">${t.icon}</span>${esc(t.label)}
+      </a>`
+    ).join('');
+  }
+
+  function persistTrip() {
+    saveTrip({
+      id:        roomId,
+      name:      state.name,
+      startDate: state.startDate,
+      endDate:   state.endDate
+    });
   }
 
   function subscribeToRoom(id) {
@@ -715,9 +680,16 @@
       if (!docSnap.exists) return;
       if (firstSnapshot) { firstSnapshot = false; return; }
       const data = docSnap.data();
-      const next = { members: data.members || [], expenses: data.expenses || [] };
+      const next = {
+        name:      data.name      || state.name,
+        startDate: data.startDate || state.startDate,
+        endDate:   data.endDate   || state.endDate,
+        members:   data.members   || [],
+        expenses:  data.expenses  || []
+      };
       if (JSON.stringify(next) === JSON.stringify(state)) return;
       state = next;
+      updateHeaderInfo();
       renderAll();
       showToast('🔄 データが更新されました');
     }, (err) => {
@@ -737,7 +709,7 @@
         members:  state.members,
         expenses: state.expenses
       });
-      saveRecentRoom(roomId, state.members);
+      persistTrip();
     } catch (err) {
       console.error('save error:', err);
     }
@@ -756,22 +728,11 @@
     showToast('共有URLをコピーしました');
   }
 
-  // ---- Toast ----
+  // ---- トースト ----
   function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2000);
-  }
-
-  // ---- ユーティリティ ----
-  function colorFor(name) {
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-    return COLORS[Math.abs(h) % COLORS.length];
-  }
-  function initials(name) { return name.slice(0, 1).toUpperCase(); }
-  function esc(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // ---- ページ切替 ----
@@ -889,22 +850,21 @@
     if (!bar) return;
     const diff = amount - sum;
     if (diff === 0) {
-      bar.className = 'split-total-bar';
+      bar.className   = 'split-total-bar';
       bar.textContent = `合計 ¥${sum.toLocaleString()} ✓`;
     } else {
-      bar.className = 'split-total-bar ng';
+      bar.className   = 'split-total-bar ng';
       const sign = diff > 0 ? '+' : '';
       bar.textContent = `合計 ¥${sum.toLocaleString()}　差額: ${sign}¥${Math.abs(diff).toLocaleString()}`;
     }
   }
 
-  // 0円設定時に残りのメンバーで均等再配分
   function autoRedistribute(changedInput) {
     if ((parseInt(changedInput.value) || 0) !== 0) return;
     const amount = parseInt(document.getElementById('expense-amount').value) || 0;
     if (amount === 0) return;
-    const inputs  = [...document.querySelectorAll('.split-input')];
-    const active  = inputs.filter(inp => (parseInt(inp.value) || 0) !== 0);
+    const inputs = [...document.querySelectorAll('.split-input')];
+    const active = inputs.filter(inp => (parseInt(inp.value) || 0) !== 0);
     if (active.length === 0) return;
     const per = Math.floor(amount / active.length);
     const rem = amount - per * active.length;
@@ -1031,11 +991,10 @@
     const desc   = document.getElementById('edit-desc').value.trim();
     const amount = Math.round(parseFloat(document.getElementById('edit-amount').value) || 0);
 
-    if (!payer)            { showToast('支払った人を選択してください'); return; }
-    if (!desc)             { showToast('内容を入力してください'); return; }
-    if (amount <= 0)       { showToast('正しい金額を入力してください'); return; }
+    if (!payer)      { showToast('支払った人を選択してください'); return; }
+    if (!desc)       { showToast('内容を入力してください'); return; }
+    if (amount <= 0) { showToast('正しい金額を入力してください'); return; }
 
-    // 金額が変わった場合は傾斜配分をリセット（金額と整合しなくなるため）
     expense.payer  = payer;
     expense.desc   = desc;
     expense.splits = (expense.splits && amount === expense.amount) ? expense.splits : null;
@@ -1113,8 +1072,8 @@
       <div class="summary-box"><div class="label">合計金額</div><div class="value">¥${total.toLocaleString()}</div></div>
       <div class="card-title" style="margin-top:4px">各自の収支</div>`;
     state.members.forEach(m => {
-      const b    = balance[m];
-      const cls  = b > 0.5 ? 'positive' : b < -0.5 ? 'negative' : 'zero';
+      const b   = balance[m];
+      const cls = b > 0.5 ? 'positive' : b < -0.5 ? 'negative' : 'zero';
       const sign = b > 0.5 ? '+' : '';
       html += `<div class="balance-bar ${cls}">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1155,24 +1114,32 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEditModal(); });
 
   // ---- 起動 ----
-  if (typeof firebase === 'undefined') {
-    showErrMsg('ライブラリ読み込みエラー',
-      'Firebase JS の CDN 読み込みに失敗しました。ネットワーク接続を確認してください。');
-  } else {
-    const savedConfig = loadConfigFromStorage();
-    if (savedConfig) {
-      try {
-        initFirebase(savedConfig);
-        const urlRoomId = new URLSearchParams(location.search).get('room');
-        if (urlRoomId) loadRoom(urlRoomId);
-        else showOverlay('welcome');
-      } catch (err) {
-        console.error('Firebase init error:', err);
-        showConfigOverlay();
-      }
+  window.addEventListener('DOMContentLoaded', () => {
+    if (typeof firebase === 'undefined') {
+      showErrMsg('ライブラリ読み込みエラー',
+        'Firebase JS の CDN 読み込みに失敗しました。ネットワーク接続を確認してください。');
+      return;
     }
-    // else: overlay-config is visible by default
-  }
+
+    const urlRoomId = new URLSearchParams(location.search).get('room');
+    if (!urlRoomId) {
+      location.href = 'index.html';
+      return;
+    }
+
+    const savedConfig = loadFirebaseConfig();
+    if (!savedConfig) {
+      showOverlay('config');
+      return;
+    }
+    try {
+      db = initFirebaseApp(savedConfig);
+      loadRoom(urlRoomId);
+    } catch (err) {
+      console.error('Firebase init error:', err);
+      showConfigOverlay();
+    }
+  });
 </script>
 </body>
 </html>
