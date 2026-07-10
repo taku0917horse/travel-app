@@ -174,6 +174,12 @@
     transition: all 0.15s; display: flex; align-items: center;
   }
   .trip-share:active { background: #dbeafe; color: var(--primary); }
+  .trip-delete {
+    background: #f1f5f9; border: none; border-radius: 8px;
+    padding: 8px; cursor: pointer; color: var(--subtext);
+    transition: all 0.15s; display: flex; align-items: center;
+  }
+  .trip-delete:active { background: #fee2e2; color: var(--danger); }
   .trip-arrow { color: var(--subtext); display: flex; align-items: center; }
 
   /* ---- フィーチャー行 ---- */
@@ -307,7 +313,7 @@
     </div>
 
     <div id="trip-list-section" style="display:none">
-      <div class="section-title">最近の旅行</div>
+      <div class="section-title">旅行一覧</div>
       <div id="trip-list"></div>
     </div>
   </div>
@@ -404,6 +410,9 @@
               <div class="trip-last">${formatRelativeDate(trip.lastAccess)}</div>
             </div>
             <div class="trip-actions">
+              <button class="trip-delete" onclick="confirmDeleteTrip(event,'${id}')" title="一覧から削除">
+                <i data-lucide="trash-2" width="16" height="16"></i>
+              </button>
               <button class="trip-share" onclick="shareTrip(event,'${id}')" title="共有リンクをコピー">
                 <i data-lucide="link" width="16" height="16"></i>
               </button>
@@ -443,6 +452,18 @@
       document.body.removeChild(ta);
     }
     showToast('共有URLをコピーしました');
+  }
+
+  function confirmDeleteTrip(event, id) {
+    event.stopPropagation();
+    const trip = loadTrips().find(t => t.id === id);
+    const name = trip ? trip.name : id;
+    const ok = window.confirm(
+      `『${name}』を一覧から削除します。\n\nこの操作は一覧からの表示のみを削除するもので、旅行データ自体は削除されません。共有リンクやルームIDがあれば、再度アクセスできます。\n\nよろしいですか？`
+    );
+    if (!ok) return;
+    removeTrip(id);
+    renderTripList();
   }
 
   // ---- ルームコードで参加 ----

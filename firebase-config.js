@@ -31,6 +31,9 @@ function saveTrip(trip) {
   trips.unshift({ ...trip, lastAccess: new Date().toISOString() });
   localStorage.setItem(APP_TRIPS_KEY, JSON.stringify(trips.slice(0, TRIPS_MAX)));
 }
+function removeTrip(id) {
+  localStorage.setItem(APP_TRIPS_KEY, JSON.stringify(loadTrips().filter(t => t.id !== id)));
+}
 
 // ---- ユーティリティ ----
 function esc(str) {
