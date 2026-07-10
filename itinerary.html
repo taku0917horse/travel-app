@@ -488,6 +488,10 @@
         <input id="ev-place" type="text" placeholder="例：東京タワー、〇〇レストラン" maxlength="60">
       </div>
       <div class="modal-field">
+        <label class="modal-label">住所（任意）</label>
+        <input id="ev-spot-address" type="text" placeholder="例：東京都港区芝公園4-2-8" maxlength="120">
+      </div>
+      <div class="modal-field">
         <label class="modal-label">メモ（省略可）</label>
         <textarea id="ev-memo" placeholder="メモ、注意事項など" maxlength="200"></textarea>
       </div>
@@ -935,9 +939,10 @@
       ? `<div class="tl-time-col"><span class="tl-time-val">${esc(ev.time)}</span></div>`
       : `<div class="tl-time-col"></div>`;
     const place = ev.place
-      ? `<div class="tl-title"><a href="${esc(mapsUrl(ev.place))}" target="_blank" rel="noopener"
+      ? `<div class="tl-title"><a href="${esc(mapsUrl(ev.address||ev.place))}" target="_blank" rel="noopener"
             onclick="event.stopPropagation()">${esc(ev.place)} <i data-lucide="map" width="12" height="12" style="color:var(--primary)"></i></a></div>`
       : '';
+    const addr  = ev.address ? `<div class="tl-memo">${esc(ev.address)}</div>` : '';
     const memo  = ev.memo ? `<div class="tl-memo">${esc(ev.memo).replace(/\n/g,'<br>')}</div>` : '';
     const empty = !place && !memo ? `<div class="tl-memo" style="color:var(--border)">（内容なし）</div>` : '';
     return `<div class="tl-item ev-spot">
@@ -945,7 +950,7 @@
       <div class="tl-stem"><div class="tl-dot"></div><div class="tl-line tl-line-solid"></div></div>
       <div class="tl-card" onclick="openEditModal(${ev.id})">
         <div class="tl-badge spot-badge"><i data-lucide="map-pin" width="10" height="10"></i>観光</div>
-        ${place}${memo}${empty}
+        ${place}${addr}${memo}${empty}
       </div></div>`;
   }
 
@@ -1049,11 +1054,12 @@
   }
 
   function buildSpotPopup(ev) {
-    const dateEl = ev.date ? `<div style="font-size:11px;color:#999;margin-bottom:3px">${formatDayHeader(ev.date)}</div>` : '';
-    const timeEl = ev.time ? ` <span style="color:#64748b;font-size:12px">${ev.time}</span>` : '';
-    const memoEl = ev.memo ? `<div style="font-size:12px;color:#64748b;margin-top:4px">${esc(ev.memo)}</div>` : '';
-    const link   = `<div style="margin-top:6px"><a href="${mapsUrl(ev.place)}" target="_blank" style="font-size:11px;color:#0ea5e9">地図で開く →</a></div>`;
-    return `<div style="min-width:140px;font-family:sans-serif">${dateEl}<strong>${esc(ev.place)}</strong>${timeEl}${memoEl}${link}</div>`;
+    const dateEl = ev.date    ? `<div style="font-size:11px;color:#999;margin-bottom:3px">${formatDayHeader(ev.date)}</div>` : '';
+    const timeEl = ev.time    ? ` <span style="color:#64748b;font-size:12px">${ev.time}</span>` : '';
+    const addrEl = ev.address ? `<div style="font-size:12px;color:#64748b;margin-top:2px">${esc(ev.address)}</div>` : '';
+    const memoEl = ev.memo    ? `<div style="font-size:12px;color:#64748b;margin-top:4px">${esc(ev.memo)}</div>` : '';
+    const link   = `<div style="margin-top:6px"><a href="${mapsUrl(ev.address||ev.place)}" target="_blank" style="font-size:11px;color:#0ea5e9">地図で開く →</a></div>`;
+    return `<div style="min-width:140px;font-family:sans-serif">${dateEl}<strong>${esc(ev.place)}</strong>${timeEl}${addrEl}${memoEl}${link}</div>`;
   }
 
   function buildStayPopup(ev) {
@@ -1097,7 +1103,7 @@
       .sort((a,b) => (a.date||'').localeCompare(b.date||''));
 
     const items = [
-      ...spots.map(ev => ({ ev, key: ev.place,                   mtype:'spot', api:'nominatim' })),
+      ...spots.map(ev => ({ ev, key: ev.address || ev.place,      mtype:'spot', api:'nominatim' })),
       ...stays.map(ev => ({ ev, key: ev.address || ev.hotelName, mtype:'stay', api:'gsi'       })),
     ];
 
@@ -1184,7 +1190,7 @@
         } else {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`,
-            { headers: { 'Accept-Language': 'ja,en;q=0.9', 'User-Agent': 'TabiNoAshiato/1.0' } }
+            { headers: { 'Accept-Language': 'ja,en;q=0.9' } }
           );
           if (res.ok) {
             const data = await res.json();
@@ -1236,7 +1242,7 @@
     setEventType('spot');
     document.getElementById('ev-undated').checked = false;
     toggleUndated();
-    ['ev-time','ev-place','ev-from','ev-depart-time','ev-arrive-time','ev-to',
+    ['ev-time','ev-place','ev-spot-address','ev-from','ev-depart-time','ev-arrive-time','ev-to',
      'ev-hotel-name','ev-address','ev-checkin-time','ev-checkout-time'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
@@ -1282,9 +1288,10 @@
       document.getElementById('ev-date-wrap').innerHTML = buildDateSelectFor('ev-date', ev.date||'');
       document.getElementById('ev-undated').checked = !!ev.undated;
       toggleUndated();
-      document.getElementById('ev-time').value  = ev.time  || '';
-      document.getElementById('ev-place').value = ev.place || '';
-      document.getElementById('ev-memo').value  = ev.memo  || '';
+      document.getElementById('ev-time').value         = ev.time    || '';
+      document.getElementById('ev-place').value        = ev.place   || '';
+      document.getElementById('ev-spot-address').value = ev.address || '';
+      document.getElementById('ev-memo').value         = ev.memo    || '';
     }
 
     document.getElementById('modal-error').style.display = 'none';
@@ -1346,7 +1353,13 @@
       const place = document.getElementById('ev-place').value.trim();
       const memo  = document.getElementById('ev-memo').value.trim();
       if (!place && !memo) { errEl.textContent='場所名またはメモを入力してください'; errEl.style.display='block'; return; }
-      newData = { type:'spot', date, time: isUndated ? '' : document.getElementById('ev-time').value, place, memo };
+      newData = {
+        type:'spot', date,
+        time:    isUndated ? '' : document.getElementById('ev-time').value,
+        place,
+        address: document.getElementById('ev-spot-address').value.trim(),
+        memo,
+      };
       if (isUndated) newData.undated = true;
     }
 
