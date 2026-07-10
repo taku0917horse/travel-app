@@ -1106,7 +1106,7 @@
       .sort((a,b) => (a.date||'').localeCompare(b.date||''));
 
     const items = [
-      ...spots.map(ev => ({ ev, key: ev.address || ev.place,      mtype:'spot', api:'nominatim' })),
+      ...spots.map(ev => ({ ev, key: ev.address || ev.place, mtype:'spot', api: ev.address ? 'gsi' : 'nominatim' })),
       ...stays.map(ev => ({ ev, key: ev.address || ev.hotelName, mtype:'stay', api:'gsi'       })),
     ];
 
