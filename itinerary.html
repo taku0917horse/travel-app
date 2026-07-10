@@ -1160,6 +1160,13 @@
   }
 
   /* ===================== ジオコーディング ===================== */
+
+  // 全角ASCII（！～）→ 半角、全角スペース→ 半角スペース
+  function normalizeQuery(q) {
+    return q.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+            .replace(/　/g, ' ').trim();
+  }
+
   async function queueGeocode(place, api) {
     if (!place) return null;
     const cacheKey = `${api}:${place}`;
@@ -1179,30 +1186,44 @@
       }
       let coord = null;
       try {
+        const normalized = normalizeQuery(place);
+        const didNormalize = normalized !== place;
         if (api === 'gsi') {
-          const res = await fetch(
-            `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(place)}`
-          );
+          const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(normalized)}`;
+          console.debug(`[Geocode/GSI] query="${normalized}"${didNormalize ? ` (from "${place}")` : ''}`);
+          const res = await fetch(url);
+          console.debug(`[Geocode/GSI] HTTP ${res.status} ${res.statusText}`);
           if (res.ok) {
             const data = await res.json();
+            console.debug(`[Geocode/GSI] results=${data.length}`, data[0] ?? '(empty)');
             if (data.length) {
               const [lon, lat] = data[0].geometry.coordinates;
               coord = { lat, lon };
             }
+          } else {
+            console.warn(`[Geocode/GSI] HTTP error ${res.status} for "${normalized}"`);
           }
         } else {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`,
-            { headers: { 'Accept-Language': 'ja,en;q=0.9' } }
-          );
+          const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(normalized)}&format=json&limit=1`;
+          console.debug(`[Geocode/Nominatim] query="${normalized}"${didNormalize ? ` (from "${place}")` : ''}`);
+          console.debug(`[Geocode/Nominatim] URL: ${url}`);
+          const res = await fetch(url, { headers: { 'Accept-Language': 'ja,en;q=0.9' } });
+          console.debug(`[Geocode/Nominatim] HTTP ${res.status} ${res.statusText}`);
           if (res.ok) {
             const data = await res.json();
+            console.debug(`[Geocode/Nominatim] results=${data.length}`, data[0] ?? '(empty)');
             if (data.length) coord = { lat: +data[0].lat, lon: +data[0].lon };
+          } else {
+            console.warn(`[Geocode/Nominatim] HTTP error ${res.status} for "${normalized}"`);
           }
         }
-      } catch (e) { console.warn('Geocode error:', place, e); }
+      } catch (e) { console.error('[Geocode] Exception for:', place, e); }
       geocodeCache[cacheKey] = coord;
-      if (!coord) console.info('Geocode: not found for', place, '(api:', api, ')');
+      if (coord) {
+        console.debug(`[Geocode] ✓ "${place}" → lat=${coord.lat}, lon=${coord.lon}`);
+      } else {
+        console.warn(`[Geocode] ✗ not found: "${place}" (api: ${api})`);
+      }
       resolve(coord);
       if (geocodeQueue.length) await new Promise(r => setTimeout(r, 1100));
     }
