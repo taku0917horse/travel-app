@@ -768,10 +768,10 @@
           </div>
         </div>
         <div class="chip-actions">
-          <button class="btn-edit" onclick="openMemberEditModal(${JSON.stringify(m)})">
+          <button class="btn-edit" onclick="openMemberEditModal(${esc(JSON.stringify(m))})">
             <i data-lucide="pencil" width="13" height="13"></i>編集
           </button>
-          <button class="btn btn-danger" onclick="removeMember(${JSON.stringify(m)})">削除</button>
+          <button class="btn btn-danger" onclick="removeMember(${esc(JSON.stringify(m))})">削除</button>
         </div>
       </div>`).join('');
     renderIcons();
