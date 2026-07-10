@@ -249,7 +249,14 @@
   .staying-text { font-size: 13px; color: var(--stay-color); font-weight: 600; }
 
   /* ---- マップビュー ---- */
-  #view-map { display: flex; flex-direction: column; overflow: hidden; }
+  #view-map { display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .map-warn {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(251,191,36,0.15); color: #92400e;
+    border: 1px solid rgba(251,191,36,0.45);
+    padding: 4px 14px; border-radius: 14px; font-size: 11px; font-weight: 500;
+    pointer-events: none; white-space: nowrap; z-index: 90;
+  }
   .map-controls {
     background: white; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 0; flex-shrink: 0;
@@ -432,6 +439,7 @@
     </button>
   </div>
   <div id="map-container"></div>
+  <div id="map-warn" class="map-warn hidden"></div>
 </div>
 </div><!-- #app-shell -->
 
@@ -786,6 +794,7 @@
     } else {
       document.body.style.overflow = '';
       document.getElementById('map-status').classList.add('hidden');
+      document.getElementById('map-warn').classList.add('hidden');
       if (mapFullscreen) exitMapFullscreen();
     }
   }
@@ -1142,6 +1151,7 @@
 
     if (gen !== mapUpdateGen) return;
 
+    const warnEl = document.getElementById('map-warn');
     if (!bounds.length) {
       const msg = failNum
         ? `${failNum}件の場所を地図上で見つけられませんでした（住所を入力するとより正確です）`
@@ -1153,9 +1163,14 @@
       const parts = [];
       if (spotNum) parts.push(`スポット${spotNum}件`);
       if (stayNum) parts.push(`宿泊${stayNum}件`);
-      if (failNum) parts.push(`${failNum}件は位置不明`);
       statusEl.textContent = parts.join('・');
       setTimeout(() => statusEl.classList.add('hidden'), 3000);
+    }
+    if (failNum) {
+      warnEl.textContent = `⚠ ${failNum}件：地図上で位置を特定できませんでした`;
+      warnEl.classList.remove('hidden');
+    } else {
+      warnEl.classList.add('hidden');
     }
   }
 
