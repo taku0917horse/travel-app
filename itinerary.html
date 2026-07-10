@@ -1084,10 +1084,13 @@
     mapMarkers.forEach(m => leafletMap.removeLayer(m));
     mapMarkers = [];
 
-    let toMap = state.itinerary.filter(ev => !ev.undated);
-    if (mapScope !== 'all') {
+    let toMap;
+    if (mapScope === 'all') {
+      toMap = state.itinerary.slice();
+    } else {
       const day = mapScope;
-      toMap = toMap.filter(ev => {
+      toMap = state.itinerary.filter(ev => {
+        if (ev.undated) return false;
         if ((ev.type||'spot') === 'stay') {
           const inD  = ev.date || '';
           const outD = ev.checkOutDate || ev.date || '';
